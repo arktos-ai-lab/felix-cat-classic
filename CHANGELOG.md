@@ -7,13 +7,16 @@ All translator-facing features from v1.7.3 are preserved exactly. Changes are
 limited to the toolchain, build system, and runtime dependencies.
 
 ### What's new vs. original v1.7.3
-- **Compiler:** Visual Studio 2013 → Visual Studio 2022
+- **Compiler:** Visual Studio 2013 → Visual Studio 2022 (toolset v143)
 - **C++ standard:** C++11 → C++17
 - **Python components:** Python 2.7 → Python 3.11+
 - **Installer:** InnoSetup 5 → InnoSetup 6
 - **WebView:** IE-based → WebView2 (Edge)
 - **Build system:** VS2013 `.vcxproj` → VS2022 `.vcxproj`
-- **Office compatibility:** Tested with Office 2016, 2019, 2021, and Microsoft 365
+- **64-bit Office support:** All three COM add-ins (Word, Excel, PowerPoint) now have
+  proper `Release|x64` and `Debug|x64` build configurations. Install the x64 DLLs
+  when running 64-bit Microsoft 365 / Office 2019+. The Felix core app remains x86.
+- **Office compatibility:** Tested with Office 2016, 2019, 2021, and Microsoft 365 (32-bit and 64-bit)
 - **Windows compatibility:** Tested on Windows 10 and Windows 11
 
 ### Features (unchanged from original)
@@ -31,8 +34,8 @@ limited to the toolchain, build system, and runtime dependencies.
 - Japanese and English UI
 
 ### Known issues
-- COM add-ins are 32-bit; 64-bit Office requires running the 32-bit Office COM bridge
 - ALT+key shortcuts in Office 365 may need to be re-assigned if they conflict with ribbon shortcuts
+- Install the x64 add-in DLLs when running 64-bit Office; install x86 DLLs for 32-bit Office
 
 ---
 Original project by Ryan Ginstrom. Fork maintained by Ernst van Gassen. MIT licensed.

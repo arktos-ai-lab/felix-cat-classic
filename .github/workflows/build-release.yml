@@ -48,7 +48,7 @@ jobs:
           git clone --depth 1 https://github.com/vinniefalco/LuaBridge.git deps/LuaBridge
         shell: bash
 
-      - name: Build Felix (Release x86)
+      - name: Build Felix core (x86)
         run: |
           msbuild src/Felix/Felix.sln `
             /p:Configuration=Release `
@@ -59,21 +59,24 @@ jobs:
         shell: pwsh
         continue-on-error: true
 
-      - name: Build Word Assist
+      - name: Build Word Assist (x86 + x64)
         run: |
           msbuild src/WordAssist/WordAssist.sln /p:Configuration=Release /p:Platform=Win32 /m
+          msbuild src/WordAssist/WordAssist.sln /p:Configuration=Release /p:Platform=x64 /m
         shell: pwsh
         continue-on-error: true
 
-      - name: Build Excel Assist
+      - name: Build Excel Assist (x86 + x64)
         run: |
           msbuild src/ExcelAssist/ExcelAssist.sln /p:Configuration=Release /p:Platform=Win32 /m
+          msbuild src/ExcelAssist/ExcelAssist.sln /p:Configuration=Release /p:Platform=x64 /m
         shell: pwsh
         continue-on-error: true
 
-      - name: Build PowerPoint Assist
+      - name: Build PowerPoint Assist (x86 + x64)
         run: |
           msbuild src/PowerPointAssist/PowerPointAssist.sln /p:Configuration=Release /p:Platform=Win32 /m
+          msbuild src/PowerPointAssist/PowerPointAssist.sln /p:Configuration=Release /p:Platform=x64 /m
         shell: pwsh
         continue-on-error: true
 
