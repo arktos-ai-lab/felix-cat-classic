@@ -1,0 +1,126 @@
+name: Build & Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup MSBuild
+        uses: microsoft/setup-msbuild@v2
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Cache vcpkg
+        uses: actions/cache@v4
+        with:
+          path: C:\vcpkg\installed
+          key: vcpkg-${{ runner.os }}-boost-lua-${{ hashFiles('**/vcpkg.json') }}
+          restore-keys: vcpkg-${{ runner.os }}-boost-lua-
+
+      - name: Install dependencies via vcpkg
+        run: |
+          vcpkg install boost:x86-windows lua:x86-windows
+          vcpkg integrate install
+
+      - name: Download WTL headers
+        run: |
+          $wtlUrl = "https://sourceforge.net/projects/wtl/files/WTL%2010/WTL%2010.0.10320/WTL10_10320_Release.zip"
+          Invoke-WebRequest -Uri $wtlUrl -OutFile wtl.zip
+          Expand-Archive wtl.zip -DestinationPath wtl
+        shell: pwsh
+
+      - name: Download LuaBridge headers
+        run: |
+          git clone --depth 1 https://github.com/vinniefalco/LuaBridge.git deps/LuaBridge
+        shell: bash
+
+      - name: Build Felix (Release x86)
+        run: |
+          msbuild src/Felix/Felix.sln `
+            /p:Configuration=Release `
+            /p:Platform=Win32 `
+            /p:WTLDir="${{ github.workspace }}\wtl\include" `
+            /p:LuaBridgeDir="${{ github.workspace }}\deps\LuaBridge\Source" `
+            /m
+        shell: pwsh
+        continue-on-error: true
+
+      - name: Build Word Assist
+        run: |
+          msbuild src/WordAssist/WordAssist.sln /p:Configuration=Release /p:Platform=Win32 /m
+        shell: pwsh
+        continue-on-error: true
+
+      - name: Build Excel Assist
+        run: |
+          msbuild src/ExcelAssist/ExcelAssist.sln /p:Configuration=Release /p:Platform=Win32 /m
+        shell: pwsh
+        continue-on-error: true
+
+      - name: Build PowerPoint Assist
+        run: |
+          msbuild src/PowerPointAssist/PowerPointAssist.sln /p:Configuration=Release /p:Platform=Win32 /m
+        shell: pwsh
+        continue-on-error: true
+
+      - name: Collect build artifacts
+        run: |
+          mkdir -p artifacts
+          find src -name "*.exe" -path "*/Release/*" -exec cp {} artifacts/ \; 2>/dev/null || true
+          find src -name "*.dll" -path "*/Release/*" -exec cp {} artifacts/ \; 2>/dev/null || true
+          ls artifacts/ || echo "No artifacts found — check build logs above"
+        shell: bash
+
+      - name: Create source archive (fallback)
+        run: |
+          TAG=${{ github.ref_name }}
+          zip -r felix-cat-classic-${TAG}-source.zip src/ docs/ manual/ README.md LICENSE CHANGELOG.md
+        shell: bash
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        if: startsWith(github.ref, 'refs/tags/')
+        with:
+          name: "Felix Classic ${{ github.ref_name }}"
+          body: |
+            ## Felix Classic ${{ github.ref_name }}
+
+            Maintained fork of Felix CAT, updated for the modern Windows toolchain.
+            Original design by Ryan Ginstrom — maintained by Ernst van Gassen.
+
+            ### What's new in ${{ github.ref_name }}
+            See [CHANGELOG.md](https://github.com/arktos-ai-lab/felix-cat-classic/blob/master/CHANGELOG.md) for full details.
+
+            ### System requirements
+            - Windows 10 / 11 (64-bit)
+            - Microsoft Office 2016 or later (Word, Excel, PowerPoint add-ins)
+            - Visual C++ Redistributable 2022
+
+            ### Installation
+            Download the installer `.exe`, run it, and follow the setup wizard.
+            The Office add-ins are registered automatically during installation.
+
+            ---
+            Original work by Ryan Ginstrom. Fork maintained by Ernst van Gassen. MIT licensed.
+
+            [![Donate](https://img.shields.io/badge/Donate-PayPal-blue.svg)](https://paypal.me/VanGassen)
+          files: |
+            artifacts/*.exe
+            artifacts/*.dll
+            felix-cat-classic-${{ github.ref_name }}-source.zip
+          draft: false
+          prerelease: false

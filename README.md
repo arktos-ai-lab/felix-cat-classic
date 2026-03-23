@@ -1,6 +1,6 @@
 # Felix Classic
 
-**Felix Classic** is a maintained fork of the original [Felix CAT System](https://github.com/your-org/felix) by Ryan Ginstrom, updated to build and run on the modern Windows toolchain while preserving everything that made Felix great.
+**Felix Classic** is a maintained fork of the original [Felix CAT System](https://github.com/arktos-ai-lab/felix-cat-original) by Ryan Ginstrom, updated to build and run on the modern Windows toolchain while preserving everything that made Felix great.
 
 > This repository directly propagates the ideas, architecture, and philosophy of the original Felix codebase. All original design decisions — translation memory, the Placement feature, COM integration with Office, and the lightweight translator-first workflow — are carried forward intact. Only the toolchain and compatibility layers are updated.
 
@@ -18,7 +18,7 @@ Key features preserved from the original:
 
 ## Relationship to the Original
 
-This fork is built directly on the original Felix source code, which was released by Ryan Ginstrom under the MIT license. The original repository is archived at [felix](https://github.com/your-org/felix).
+This fork is built directly on the original Felix source code, which was released by Ryan Ginstrom under the MIT license. The original repository is archived at [felix-cat-original](https://github.com/arktos-ai-lab/felix-cat-original).
 
 Changes made in this fork are limited to toolchain and compatibility updates — no features have been removed and no architectural changes have been made. The translator experience is identical to the original.
 
@@ -51,7 +51,7 @@ The full Felix Manual 1.7.1.1 is available in two forms:
 
 | Format | Location | Use |
 |--------|----------|-----|
-| HTML (rendered) | [`docs/`](docs/) — via [GitHub Pages](https://your-org.github.io/felix-classic/) | Browse in a browser |
+| HTML (rendered) | [`docs/`](docs/) — via [GitHub Pages](https://arktos-ai-lab.github.io/felix-cat-classic/) | Browse in a browser |
 | Markdown | [`manual/`](manual/) | Read on GitHub / machine-readable |
 
 The [`docs/index.html`](docs/index.html) is the GitHub Pages entry point with a full table of contents.
@@ -115,6 +115,14 @@ This fork is maintained under the same MIT license, with the original copyright 
 ## Acknowledgements
 
 Felix was designed and built by **Ryan Ginstrom**. This project exists because of his work.
-The original source was published on Bitbucket under the MIT license and is archived at [felix-original](https://github.com/your-org/felix-original).
+The original source was published on Bitbucket under the MIT license and is archived at [felix-cat-original](https://github.com/arktos-ai-lab/felix-cat-original).
 
 This fork was created and is maintained by **Ernst van Gassen**.
+
+## Support & Thanks
+
+If you find Felix Classic useful, consider supporting ongoing development:
+
+[![Donate via PayPal](https://img.shields.io/badge/Donate-PayPal-blue.svg)](https://paypal.me/VanGassen)
+
+All original credit goes to **Ryan Ginstrom** who designed and built Felix and released it as open source.
