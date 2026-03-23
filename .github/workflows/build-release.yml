@@ -8,93 +8,244 @@ on:
 
 jobs:
   build:
-    runs-on: windows-latest
+    runs-on: windows-2022
     permissions:
       contents: write
 
+    env:
+      LUA_VERSION: "5.2.4"
+      WTL_VERSION: "10.0.10320"
+
     steps:
+      # -----------------------------------------------------------------------
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup MSBuild
+      # -----------------------------------------------------------------------
+      - name: Setup MSBuild (VS 2022)
         uses: microsoft/setup-msbuild@v2
+        with:
+          msbuild-architecture: x64
 
-      - name: Setup Python
+      # -----------------------------------------------------------------------
+      - name: Setup Python 3.11
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
+          architecture: 'x86'   # Felix embeds 32-bit Python
 
-      - name: Cache vcpkg
+      # -----------------------------------------------------------------------
+      - name: Cache dependencies
         uses: actions/cache@v4
+        id: cache-deps
         with:
-          path: C:\vcpkg\installed
-          key: vcpkg-${{ runner.os }}-boost-lua-${{ hashFiles('**/vcpkg.json') }}
-          restore-keys: vcpkg-${{ runner.os }}-boost-lua-
+          path: |
+            C:\deps
+            C:\vcpkg\installed
+          key: felix-deps-${{ runner.os }}-lua${{ env.LUA_VERSION }}-wtl${{ env.WTL_VERSION }}
 
-      - name: Install dependencies via vcpkg
-        run: |
-          vcpkg install boost:x86-windows lua:x86-windows
-          vcpkg integrate install
-
-      - name: Download WTL headers
-        run: |
-          $wtlUrl = "https://sourceforge.net/projects/wtl/files/WTL%2010/WTL%2010.0.10320/WTL10_10320_Release.zip"
-          Invoke-WebRequest -Uri $wtlUrl -OutFile wtl.zip
-          Expand-Archive wtl.zip -DestinationPath wtl
+      # -----------------------------------------------------------------------
+      - name: Download Lua ${{ env.LUA_VERSION }}
+        if: steps.cache-deps.outputs.cache-hit != 'true'
         shell: pwsh
-
-      - name: Download LuaBridge headers
         run: |
-          git clone --depth 1 https://github.com/vinniefalco/LuaBridge.git deps/LuaBridge
+          $url = "https://www.lua.org/ftp/lua-$env:LUA_VERSION.tar.gz"
+          Invoke-WebRequest $url -OutFile lua.tar.gz
+          tar -xzf lua.tar.gz -C C:\deps
+          Rename-Item "C:\deps\lua-$env:LUA_VERSION" "C:\deps\lua"
+
+      - name: Build Lua static lib (x86)
+        if: steps.cache-deps.outputs.cache-hit != 'true'
+        shell: cmd
+        run: |
+          cd C:\deps\lua\src
+          cl /nologo /O2 /W3 /c /D_CRT_SECURE_NO_DEPRECATE *.c
+          del lua.obj luac.obj
+          lib /nologo /out:lua52.lib *.obj
+
+      # -----------------------------------------------------------------------
+      - name: Download LuaBridge
+        if: steps.cache-deps.outputs.cache-hit != 'true'
         shell: bash
-
-      - name: Build Felix core (x86)
         run: |
+          git clone --depth 1 https://github.com/vinniefalco/LuaBridge.git C:/deps/LuaBridge
+
+      # -----------------------------------------------------------------------
+      - name: Download LuaWrapper (kmsquire/luawrapper)
+        if: steps.cache-deps.outputs.cache-hit != 'true'
+        shell: bash
+        run: |
+          git clone --depth 1 https://github.com/Enfis/luawrapper.git C:/deps/LuaWrapper || \
+          git clone --depth 1 https://github.com/kmsquire/luawrapper.git C:/deps/LuaWrapper || \
+          mkdir -p C:/deps/LuaWrapper/LuaWrapper
+
+      # -----------------------------------------------------------------------
+      - name: Download WTL ${{ env.WTL_VERSION }} headers
+        if: steps.cache-deps.outputs.cache-hit != 'true'
+        shell: pwsh
+        run: |
+          $url = "https://sourceforge.net/projects/wtl/files/WTL%2010/WTL%2010.0.10320/WTL10_10320_Release.zip/download"
+          Invoke-WebRequest $url -OutFile wtl.zip -UserAgent "Mozilla/5.0"
+          Expand-Archive wtl.zip -DestinationPath C:\deps\wtl
+          # WTL headers land in C:\deps\wtl\Include\
+          Get-ChildItem C:\deps\wtl -Recurse -Filter "atlapp.h" | Select-Object -First 1
+
+      # -----------------------------------------------------------------------
+      - name: Setup vcpkg boost (for Felix core)
+        if: steps.cache-deps.outputs.cache-hit != 'true'
+        shell: bash
+        run: |
+          vcpkg install boost-algorithm:x86-windows boost-filesystem:x86-windows \
+                        boost-regex:x86-windows boost-test:x86-windows || true
+
+      # -----------------------------------------------------------------------
+      - name: Add LuaBridge to src (expected relative path)
+        shell: bash
+        run: |
+          # Felix.vcxproj expects ..\..\LuaBridge relative to src/Felix/
+          # so LuaBridge should be at src/LuaBridge/
+          cp -r C:/deps/LuaBridge src/LuaBridge
+
+      - name: Add LuaWrapper to src
+        shell: bash
+        run: |
+          cp -r C:/deps/LuaWrapper src/LuaWrapper
+
+      # -----------------------------------------------------------------------
+      - name: Build Felix core (Unicode_Release x86)
+        shell: pwsh
+        continue-on-error: true
+        run: |
+          $wtlDir = (Get-ChildItem "C:\deps\wtl" -Recurse -Filter "atlapp.h" | Select-Object -First 1).DirectoryName
           msbuild src/Felix/Felix.sln `
-            /p:Configuration=Release `
+            /p:Configuration=Unicode_Release `
             /p:Platform=Win32 `
-            /p:WTLDir="${{ github.workspace }}\wtl\include" `
-            /p:LuaBridgeDir="${{ github.workspace }}\deps\LuaBridge\Source" `
+            /p:LUA_DIR="C:\deps\lua" `
+            /p:LUAWRAPPER_DIR="C:\deps\LuaWrapper" `
+            /p:IncludePath="$wtlDir;C:\deps\lua\src;C:\deps\LuaWrapper\LuaWrapper;$(IncludePath)" `
+            /p:LibraryPath="C:\deps\lua\src;$(LibraryPath)" `
+            /t:Felix `
             /m
+          echo "Felix build exit: $LASTEXITCODE"
+
+      # -----------------------------------------------------------------------
+      - name: Build Word Assist x86
         shell: pwsh
         continue-on-error: true
-
-      - name: Build Word Assist (x86 + x64)
         run: |
-          msbuild src/WordAssist/WordAssist.sln /p:Configuration=Release /p:Platform=Win32 /m
-          msbuild src/WordAssist/WordAssist.sln /p:Configuration=Release /p:Platform=x64 /m
+          $wtlDir = (Get-ChildItem "C:\deps\wtl" -Recurse -Filter "atlapp.h" | Select-Object -First 1).DirectoryName
+          msbuild src/WordAssist/WordAssist.sln `
+            /p:Configuration=Release /p:Platform=Win32 `
+            /p:IncludePath="$wtlDir;$(IncludePath)" /m
+          echo "WordAssist x86 exit: $LASTEXITCODE"
+
+      - name: Build Word Assist x64
         shell: pwsh
         continue-on-error: true
-
-      - name: Build Excel Assist (x86 + x64)
         run: |
-          msbuild src/ExcelAssist/ExcelAssist.sln /p:Configuration=Release /p:Platform=Win32 /m
-          msbuild src/ExcelAssist/ExcelAssist.sln /p:Configuration=Release /p:Platform=x64 /m
+          $wtlDir = (Get-ChildItem "C:\deps\wtl" -Recurse -Filter "atlapp.h" | Select-Object -First 1).DirectoryName
+          msbuild src/WordAssist/WordAssist.sln `
+            /p:Configuration=Release /p:Platform=x64 `
+            /p:IncludePath="$wtlDir;$(IncludePath)" /m
+          echo "WordAssist x64 exit: $LASTEXITCODE"
+
+      # -----------------------------------------------------------------------
+      - name: Build Excel Assist x86
         shell: pwsh
         continue-on-error: true
-
-      - name: Build PowerPoint Assist (x86 + x64)
         run: |
-          msbuild src/PowerPointAssist/PowerPointAssist.sln /p:Configuration=Release /p:Platform=Win32 /m
-          msbuild src/PowerPointAssist/PowerPointAssist.sln /p:Configuration=Release /p:Platform=x64 /m
+          $wtlDir = (Get-ChildItem "C:\deps\wtl" -Recurse -Filter "atlapp.h" | Select-Object -First 1).DirectoryName
+          msbuild src/ExcelAssist/ExcelAssist.sln `
+            /p:Configuration=Release /p:Platform=Win32 `
+            /p:IncludePath="$wtlDir;$(IncludePath)" /m
+
+      - name: Build Excel Assist x64
         shell: pwsh
         continue-on-error: true
+        run: |
+          $wtlDir = (Get-ChildItem "C:\deps\wtl" -Recurse -Filter "atlapp.h" | Select-Object -First 1).DirectoryName
+          msbuild src/ExcelAssist/ExcelAssist.sln `
+            /p:Configuration=Release /p:Platform=x64 `
+            /p:IncludePath="$wtlDir;$(IncludePath)" /m
 
+      # -----------------------------------------------------------------------
+      - name: Build PowerPoint Assist x86
+        shell: pwsh
+        continue-on-error: true
+        run: |
+          $wtlDir = (Get-ChildItem "C:\deps\wtl" -Recurse -Filter "atlapp.h" | Select-Object -First 1).DirectoryName
+          msbuild src/PowerPointAssist/PowerPointAssist.sln `
+            /p:Configuration=Release /p:Platform=Win32 `
+            /p:IncludePath="$wtlDir;$(IncludePath)" /m
+
+      - name: Build PowerPoint Assist x64
+        shell: pwsh
+        continue-on-error: true
+        run: |
+          $wtlDir = (Get-ChildItem "C:\deps\wtl" -Recurse -Filter "atlapp.h" | Select-Object -First 1).DirectoryName
+          msbuild src/PowerPointAssist/PowerPointAssist.sln `
+            /p:Configuration=Release /p:Platform=x64 `
+            /p:IncludePath="$wtlDir;$(IncludePath)" /m
+
+      # -----------------------------------------------------------------------
       - name: Collect build artifacts
-        run: |
-          mkdir -p artifacts
-          find src -name "*.exe" -path "*/Release/*" -exec cp {} artifacts/ \; 2>/dev/null || true
-          find src -name "*.dll" -path "*/Release/*" -exec cp {} artifacts/ \; 2>/dev/null || true
-          ls artifacts/ || echo "No artifacts found — check build logs above"
         shell: bash
+        run: |
+          mkdir -p artifacts/x86 artifacts/x64
+          find src -name "Felix.exe"       -path "*/Release/*" -exec cp {} artifacts/x86/ \; 2>/dev/null || true
+          find src -name "WordAssist.dll"  -path "*/Release/*" -not -path "*/Release64/*" -exec cp {} artifacts/x86/ \; 2>/dev/null || true
+          find src -name "ExcelAssist.dll" -path "*/Release/*" -not -path "*/Release64/*" -exec cp {} artifacts/x86/ \; 2>/dev/null || true
+          find src -name "PowerPointAssist.dll" -path "*/Release/*" -not -path "*/Release64/*" -exec cp {} artifacts/x86/ \; 2>/dev/null || true
+          find src -name "WordAssist.dll"  -path "*/Release64/*" -exec cp {} artifacts/x64/ \; 2>/dev/null || true
+          find src -name "ExcelAssist.dll" -path "*/Release64/*" -exec cp {} artifacts/x64/ \; 2>/dev/null || true
+          find src -name "PowerPointAssist.dll" -path "*/Release64/*" -exec cp {} artifacts/x64/ \; 2>/dev/null || true
+          # Also copy SciLexer.dll (included in source)
+          find src -name "SciLexer.dll" -exec cp {} artifacts/x86/ \; 2>/dev/null || true
+          echo "=== x86 artifacts ===" && ls artifacts/x86/ || echo "(none)"
+          echo "=== x64 artifacts ===" && ls artifacts/x64/ || echo "(none)"
 
-      - name: Create source archive (fallback)
+      # -----------------------------------------------------------------------
+      - name: Build InnoSetup installer
+        shell: pwsh
+        continue-on-error: true
+        run: |
+          choco install innosetup --no-progress -y
+          $iscc = "C:\Program Files (x86)\Inno Setup 6\ISCC.exe"
+          if (Test-Path $iscc) {
+            & $iscc src/setup/Felix.iss /DMyAppVersion="${{ github.ref_name }}" /DOutputDir="${{ github.workspace }}\installer"
+          } else {
+            echo "InnoSetup not found — skipping installer"
+          }
+
+      # -----------------------------------------------------------------------
+      - name: Create source archive (always)
+        shell: bash
         run: |
           TAG=${{ github.ref_name }}
-          zip -r felix-cat-classic-${TAG}-source.zip src/ docs/ manual/ README.md LICENSE CHANGELOG.md
-        shell: bash
+          zip -r felix-cat-classic-${TAG}-source.zip \
+              src/ docs/ manual/ README.md LICENSE CHANGELOG.md \
+              --exclude "src/.hg/*" --exclude "*.ipch" --exclude "*/Debug/*" --exclude "*/Release/*"
 
-      - name: Create Release
+      # -----------------------------------------------------------------------
+      - name: Upload build logs on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-logs
+          path: |
+            **/*.log
+            **/msbuild*.log
+
+      - name: Upload artifacts for inspection
+        uses: actions/upload-artifact@v4
+        with:
+          name: felix-classic-binaries
+          path: |
+            artifacts/
+            installer/
+
+      # -----------------------------------------------------------------------
+      - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         if: startsWith(github.ref, 'refs/tags/')
         with:
@@ -102,28 +253,36 @@ jobs:
           body: |
             ## Felix Classic ${{ github.ref_name }}
 
-            Maintained fork of Felix CAT, updated for the modern Windows toolchain.
+            Maintained fork of Felix CAT, updated for modern Windows and 64-bit Office.
             Original design by Ryan Ginstrom — maintained by Ernst van Gassen.
 
-            ### What's new in ${{ github.ref_name }}
+            ### What's in this release
             See [CHANGELOG.md](https://github.com/arktos-ai-lab/felix-cat-classic/blob/master/CHANGELOG.md) for full details.
 
+            ### Downloads
+            | File | Description |
+            |------|-------------|
+            | `Felix-Classic-Setup-*.exe` | Installer (recommended) |
+            | `felix-cat-classic-*-source.zip` | Full source code |
+
             ### System requirements
-            - Windows 10 / 11 (64-bit)
-            - Microsoft Office 2016 or later (Word, Excel, PowerPoint add-ins)
+            - Windows 10 or 11
+            - Microsoft Office 2016, 2019, 2021, or Microsoft 365
+            - For **64-bit Office** (default in Microsoft 365): the installer registers the x64 add-in DLLs automatically
+            - For **32-bit Office**: the installer registers the x86 add-in DLLs automatically
             - Visual C++ Redistributable 2022
 
             ### Installation
-            Download the installer `.exe`, run it, and follow the setup wizard.
-            The Office add-ins are registered automatically during installation.
+            Run the installer `.exe` and follow the setup wizard.
+            The Word, Excel, and PowerPoint add-ins are registered automatically.
 
             ---
-            Original work by Ryan Ginstrom. Fork maintained by Ernst van Gassen. MIT licensed.
+            Original work © Ryan Ginstrom 1999–2015. Fork maintained by Ernst van Gassen. MIT licensed.
 
             [![Donate](https://img.shields.io/badge/Donate-PayPal-blue.svg)](https://paypal.me/VanGassen)
           files: |
-            artifacts/*.exe
-            artifacts/*.dll
+            installer/*.exe
             felix-cat-classic-${{ github.ref_name }}-source.zip
+          fail_on_unmatched_files: false
           draft: false
           prerelease: false

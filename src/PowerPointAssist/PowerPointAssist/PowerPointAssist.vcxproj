@@ -387,7 +387,7 @@
     <ClInclude Include="addinexceptionhandlerdef.h" />
     <ClInclude Include="app_state.h" />
     <ClInclude Include="ClipboardBackup.h" />
-    <ClInclude Include="C:\dev\cpp\Assistant Suite\common\ColorRef.h" />
+    <ClInclude Include="..\..\common\ColorRef.h" />
     <ClInclude Include="Connect.h" />
     <ClInclude Include="globalApp.h" />
     <ClInclude Include="Hooker.h" />

@@ -1,0 +1,8 @@
+data/README.rst.i
+data/cpptempl_test.cpp.i
+data/.hgignore.i
+data/cpptempl.h.i
+data/cpptempl.cpp.i
+data/README.txt.i
+data/LICENSE.txt.i
+data/unit_testing.h.i

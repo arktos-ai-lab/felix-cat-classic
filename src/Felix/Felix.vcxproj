@@ -75,12 +75,12 @@
     <CodeAnalysisRuleSet Condition="'$(Configuration)|$(Platform)'=='Unicode_Release|Win32'">AllRules.ruleset</CodeAnalysisRuleSet>
     <CodeAnalysisRules Condition="'$(Configuration)|$(Platform)'=='Unicode_Release|Win32'" />
     <CodeAnalysisRuleAssemblies Condition="'$(Configuration)|$(Platform)'=='Unicode_Release|Win32'" />
-    <IncludePath Condition="'$(Configuration)|$(Platform)'=='Testing|Win32'">D:\dev\cpp\lua-5.2.2\src;D:\dev\cpp\LuaWrapper\LuaWrapper;$(IncludePath)</IncludePath>
-    <LibraryPath Condition="'$(Configuration)|$(Platform)'=='Unicode_Debug|Win32'">D:\dev\cpp\Assistant Suite\CppTempl\Debug;$(LibraryPath)</LibraryPath>
-    <LibraryPath Condition="'$(Configuration)|$(Platform)'=='Unicode_Release|Win32'">D:\dev\cpp\Assistant Suite\CppTempl\Release;$(LibraryPath)</LibraryPath>
-    <LibraryPath Condition="'$(Configuration)|$(Platform)'=='Testing|Win32'">D:\dev\cpp\Assistant Suite\CppTempl\Debug;$(LibraryPath)</LibraryPath>
-    <IncludePath Condition="'$(Configuration)|$(Platform)'=='Unicode_Release|Win32'">D:\dev\cpp\lua-5.2.2\src;D:\dev\cpp\LuaWrapper\LuaWrapper;$(IncludePath)</IncludePath>
-    <IncludePath Condition="'$(Configuration)|$(Platform)'=='Unicode_Debug|Win32'">D:\dev\cpp\lua-5.2.2\src;D:\dev\cpp\LuaWrapper\LuaWrapper;$(IncludePath)</IncludePath>
+    <IncludePath Condition="'$(Configuration)|$(Platform)'=='Testing|Win32'">$(LUA_DIR)\src;$(LUAWRAPPER_DIR)\LuaWrapper;$(IncludePath)</IncludePath>
+    <LibraryPath Condition="'$(Configuration)|$(Platform)'=='Unicode_Debug|Win32'">$(ProjectDir)..\..\cpptempl\Debug;$(LibraryPath)</LibraryPath>
+    <LibraryPath Condition="'$(Configuration)|$(Platform)'=='Unicode_Release|Win32'">$(ProjectDir)..\..\cpptempl\Release;$(LibraryPath)</LibraryPath>
+    <LibraryPath Condition="'$(Configuration)|$(Platform)'=='Testing|Win32'">$(ProjectDir)..\..\cpptempl\Debug;$(LibraryPath)</LibraryPath>
+    <IncludePath Condition="'$(Configuration)|$(Platform)'=='Unicode_Release|Win32'">$(LUA_DIR)\src;$(LUAWRAPPER_DIR)\LuaWrapper;$(IncludePath)</IncludePath>
+    <IncludePath Condition="'$(Configuration)|$(Platform)'=='Unicode_Debug|Win32'">$(LUA_DIR)\src;$(LUAWRAPPER_DIR)\LuaWrapper;$(IncludePath)</IncludePath>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Unicode_Debug|Win32'">
     <PreBuildEvent>
@@ -188,7 +188,7 @@ echo Server registration done!
 echo regsvr32 exec. time &gt; "$(OutDir)regsvr32.trg"
 echo Server registration done!
 echo Protecting project...
-"D:\Program Files (x86)\SoftwarePassport\ArmCLine.exe" "D:\dev\cpp\Assistant Suite\Felix\Felix.ARM" /P
+echo Skipping code protection (open source build)
 echo Protection complete!
 </Command>
       <Outputs>$(OutDir)regsvr32.trg;%(Outputs)</Outputs>
