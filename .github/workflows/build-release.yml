@@ -224,9 +224,9 @@ jobs:
         shell: bash
         run: |
           TAG=${{ github.ref_name }}
-          zip -r felix-cat-classic-${TAG}-source.zip \
+          7z a "felix-cat-classic-${TAG}-source.zip" \
               src/ docs/ manual/ README.md LICENSE CHANGELOG.md \
-              --exclude "src/.hg/*" --exclude "*.ipch" --exclude "*/Debug/*" --exclude "*/Release/*"
+              -xr!".hg" -xr!"*.ipch" -xr!"Debug" -xr!"Release"
 
       # -----------------------------------------------------------------------
       - name: Upload build logs on failure
