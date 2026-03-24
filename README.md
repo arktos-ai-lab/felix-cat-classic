@@ -119,10 +119,15 @@ The original source was published on Bitbucket under the MIT license and is arch
 
 This fork was created and is maintained by **Ernst van Gassen**.
 
-## Support & Thanks
+## Support Arktos AI Lab
 
-If you find Felix Classic useful, consider supporting ongoing development:
+Arktos AI Lab is a one-person operation run by Ernst van Gassen — an independent researcher with one too many interests and not enough hours in the day. Keeping Felix working on modern Windows, sorting out CI pipelines, fighting Cloudflare-protected download servers — it all takes time that is genuinely hard to find.
 
-[![Donate via PayPal](https://img.shields.io/badge/Donate-PayPal-blue.svg)](https://paypal.me/VanGassen)
+If Felix Classic has made your translation work easier, or saved you from having to switch to a subscription-based tool you didn't ask for — a small donation is a meaningful way to say thank you and to keep the project alive.
 
-All original credit goes to **Ryan Ginstrom** who designed and built Felix and released it as open source.
+[![Donate via PayPal](https://img.shields.io/badge/Donate%20via-PayPal-blue.svg)](https://paypal.me/VanGassen)
+
+Thank you. It genuinely makes a difference.
+
+---
+All original credit goes to **Ryan Ginstrom** who designed and built Felix and released it as open source. This fork exists because of his generosity.
