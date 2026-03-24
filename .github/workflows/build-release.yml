@@ -85,13 +85,12 @@ jobs:
       # -----------------------------------------------------------------------
       - name: Download WTL ${{ env.WTL_VERSION }} headers
         if: steps.cache-deps.outputs.cache-hit != 'true'
-        shell: pwsh
+        shell: bash
         run: |
-          $url = "https://sourceforge.net/projects/wtl/files/WTL%2010/WTL%2010.0.10320/WTL10_10320_Release.zip/download"
-          Invoke-WebRequest $url -OutFile wtl.zip -UserAgent "Mozilla/5.0"
-          Expand-Archive wtl.zip -DestinationPath C:\deps\wtl
-          # WTL headers land in C:\deps\wtl\Include\
-          Get-ChildItem C:\deps\wtl -Recurse -Filter "atlapp.h" | Select-Object -First 1
+          # SourceForge is behind Cloudflare JS challenge — use the GitHub mirror instead
+          git clone --depth 1 --branch WTL_10_0_10320 https://github.com/Win32-WTL/WTL.git C:/deps/wtl 2>/dev/null || \
+          git clone --depth 1 https://github.com/Win32-WTL/WTL.git C:/deps/wtl
+          ls C:/deps/wtl/Include/atlapp.h && echo "WTL headers OK"
 
       # -----------------------------------------------------------------------
       - name: Setup vcpkg boost (for Felix core)
