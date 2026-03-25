@@ -179,14 +179,14 @@ jobs:
           $boostInc = "C:\vcpkg\installed\x86-windows\include"
           $boostLib = "C:\vcpkg\installed\x86-windows\lib"
           $xml = @'
-<?xml version="1.0" encoding="utf-8"?>
-<Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
-  <PropertyGroup>
-    <IncludePath>__WTL__;__COMMON__;__BOOST_INC__;C:\deps\lua\src;C:\deps\LuaWrapper\LuaWrapper;$(IncludePath)</IncludePath>
-    <LibraryPath>__BOOST_LIB__;C:\deps\lua\src;$(LibraryPath)</LibraryPath>
-  </PropertyGroup>
-</Project>
-'@
+          <?xml version="1.0" encoding="utf-8"?>
+          <Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+            <PropertyGroup>
+              <IncludePath>__WTL__;__COMMON__;__BOOST_INC__;C:\deps\lua\src;C:\deps\LuaWrapper\LuaWrapper;$(IncludePath)</IncludePath>
+              <LibraryPath>__BOOST_LIB__;C:\deps\lua\src;$(LibraryPath)</LibraryPath>
+            </PropertyGroup>
+          </Project>
+          '@
           $xml = $xml.Replace('__WTL__',       $wtlDir)
           $xml = $xml.Replace('__COMMON__',     $common)
           $xml = $xml.Replace('__BOOST_INC__',  $boostInc)
