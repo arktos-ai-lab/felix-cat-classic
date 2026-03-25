@@ -164,6 +164,18 @@ jobs:
           }
 
       # -----------------------------------------------------------------------
+      - name: Place cpptempl where Felix.vcxproj expects it
+        shell: pwsh
+        run: |
+          # Felix.vcxproj references ..\..\cpptempl\cpptempl.cpp relative to src/Felix/
+          # which resolves to cpptempl/ at the repo root.
+          $dest = "$env:GITHUB_WORKSPACE\cpptempl"
+          if (-not (Test-Path $dest)) {
+            Copy-Item -Recurse -Force "$env:GITHUB_WORKSPACE\src\cpptempl" $dest
+          }
+          Write-Host "cpptempl at $dest: $(Test-Path $dest\cpptempl.h)"
+
+      # -----------------------------------------------------------------------
       - name: Place Lua sources where Felix.vcxproj expects them
         shell: pwsh
         run: |
