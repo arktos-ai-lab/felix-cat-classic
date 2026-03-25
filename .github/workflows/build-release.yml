@@ -60,7 +60,7 @@ jobs:
           path: |
             C:\deps
             C:\vcpkg\installed
-          key: felix-deps-${{ runner.os }}-lua${{ env.LUA_VERSION }}-wtl${{ env.WTL_VERSION }}-boost2
+          key: felix-deps-${{ runner.os }}-lua${{ env.LUA_VERSION }}-wtl${{ env.WTL_VERSION }}-boost4
 
       # -----------------------------------------------------------------------
       - name: Download and build Lua ${{ env.LUA_VERSION }}
@@ -118,6 +118,50 @@ jobs:
           $pkgs = "$env:BOOST_PKGS" -split '\s+' | Where-Object { $_ -ne '' }
           vcpkg install @pkgs
           Write-Host "Boost install complete"
+
+      # -----------------------------------------------------------------------
+      - name: Create boost/timer.hpp compatibility shim
+        shell: pwsh
+        run: |
+          # boost/timer.hpp (the old simple boost::timer class) was removed in Boost 1.80.
+          # vcpkg now provides boost/timer/timer.hpp (the new cpu_timer) but Felix uses
+          # the old API.  Re-create the removed header as a minimal drop-in.
+          $shimPath = "C:\vcpkg\installed\x86-windows\include\boost\timer.hpp"
+          if (-not (Test-Path $shimPath)) {
+            $shim = @'
+          #pragma once
+          // Compatibility shim: boost/timer.hpp was removed in Boost 1.80.
+          // Recreates the original boost::timer class using <ctime>.
+          #ifndef BOOST_TIMER_HPP_INCLUDED
+          #define BOOST_TIMER_HPP_INCLUDED
+          #include <boost/config.hpp>
+          #include <ctime>
+          #include <limits>
+          namespace boost {
+            class timer {
+            public:
+              typedef std::clock_t clock_t;
+              timer() { _start = std::clock(); }
+              void   restart() { _start = std::clock(); }
+              double elapsed() const {
+                return double(std::clock() - _start) / CLOCKS_PER_SEC;
+              }
+              double elapsed_max() const {
+                return (double((std::numeric_limits<clock_t>::max)()) -
+                        double(_start)) / double(CLOCKS_PER_SEC);
+              }
+              double elapsed_min() const { return double(1) / double(CLOCKS_PER_SEC); }
+            private:
+              clock_t _start;
+            };
+          } // namespace boost
+          #endif // BOOST_TIMER_HPP_INCLUDED
+          '@
+            Set-Content -Path $shimPath -Value $shim -Encoding UTF8
+            Write-Host "Created boost/timer.hpp shim at $shimPath"
+          } else {
+            Write-Host "boost/timer.hpp already present (from cache)"
+          }
 
       # -----------------------------------------------------------------------
       - name: Place Lua sources where Felix.vcxproj expects them
@@ -198,7 +242,7 @@ jobs:
 
       - name: Build Felix core (Unicode_Release x86)
         shell: cmd
-        run: msbuild src/Felix/Felix.sln /p:Configuration=Unicode_Release /p:Platform=Win32 /p:LUA_DIR=C:\deps\lua /p:LUAWRAPPER_DIR=C:\deps\LuaWrapper /p:ForceImportBeforeCppTargets=C:\Temp\felix-ci.props /t:Felix /m /v:minimal
+        run: msbuild src/Felix/Felix.sln /p:Configuration=Unicode_Release /p:Platform=Win32 /p:LUA_DIR=C:\deps\lua /p:LUAWRAPPER_DIR=C:\deps\LuaWrapper /p:ForceImportBeforeCppTargets=C:\Temp\felix-ci.props /t:Felix /m /v:normal /flp:logfile=msbuild-felix.log;verbosity=normal
 
       # -----------------------------------------------------------------------
       - name: Build Word Assist x86
