@@ -166,65 +166,72 @@ jobs:
           Get-Item "D:\dev\cpp\*" | ForEach-Object { Write-Host "  $($_.FullName) -> $($_.Target)" }
 
       # -----------------------------------------------------------------------
-      - name: Generate Directory.Build.props with include/library paths
+      # Directory.Build.props is imported BEFORE Microsoft.Cpp.Default.props sets
+      # IncludePath, so $(IncludePath) would be empty there. ForceImportBeforeCppTargets
+      # is imported AFTER the default props — $(IncludePath) is fully populated.
+      # Use @'...'@ (single-quoted) + .Replace() so MSBuild variable references like
+      # $(IncludePath) are not expanded by PowerShell.
+      - name: Write CI build props (ForceImportBeforeCppTargets)
         shell: pwsh
         run: |
-          $wtlDir = (Get-ChildItem "C:\deps\wtl" -Recurse -Filter "atlapp.h" | Select-Object -First 1).DirectoryName
-          $common = "$env:GITHUB_WORKSPACE\src\common"
+          $wtlDir   = (Get-ChildItem "C:\deps\wtl" -Recurse -Filter "atlapp.h" | Select-Object -First 1).DirectoryName
+          $common   = "$env:GITHUB_WORKSPACE\src\common"
           $boostInc = "C:\vcpkg\installed\x86-windows\include"
           $boostLib = "C:\vcpkg\installed\x86-windows\lib"
-          $props = @'
-          <Project>
-            <PropertyGroup>
-              <IncludePath>__WTL__;__COMMON__;__BOOST_INC__;C:\deps\lua\src;C:\deps\LuaWrapper\LuaWrapper;$(IncludePath)</IncludePath>
-              <LibraryPath>__BOOST_LIB__;C:\deps\lua\src;$(LibraryPath)</LibraryPath>
-            </PropertyGroup>
-          </Project>
-          '@
-          $props = $props.Replace('__WTL__', $wtlDir)
-          $props = $props.Replace('__COMMON__', $common)
-          $props = $props.Replace('__BOOST_INC__', $boostInc)
-          $props = $props.Replace('__BOOST_LIB__', $boostLib)
-          Set-Content -Path "$env:GITHUB_WORKSPACE\Directory.Build.props" -Value $props -Encoding UTF8
-          Write-Host "Generated Directory.Build.props:"
-          Get-Content "$env:GITHUB_WORKSPACE\Directory.Build.props"
+          $xml = @'
+<?xml version="1.0" encoding="utf-8"?>
+<Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <PropertyGroup>
+    <IncludePath>__WTL__;__COMMON__;__BOOST_INC__;C:\deps\lua\src;C:\deps\LuaWrapper\LuaWrapper;$(IncludePath)</IncludePath>
+    <LibraryPath>__BOOST_LIB__;C:\deps\lua\src;$(LibraryPath)</LibraryPath>
+  </PropertyGroup>
+</Project>
+'@
+          $xml = $xml.Replace('__WTL__',       $wtlDir)
+          $xml = $xml.Replace('__COMMON__',     $common)
+          $xml = $xml.Replace('__BOOST_INC__',  $boostInc)
+          $xml = $xml.Replace('__BOOST_LIB__',  $boostLib)
+          New-Item -ItemType Directory -Force "C:\Temp" | Out-Null
+          Set-Content -Path "C:\Temp\felix-ci.props" -Value $xml -Encoding UTF8
+          Write-Host "Generated C:\Temp\felix-ci.props:"
+          Get-Content "C:\Temp\felix-ci.props"
 
       - name: Build Felix core (Unicode_Release x86)
         shell: cmd
-        run: msbuild src/Felix/Felix.sln /p:Configuration=Unicode_Release /p:Platform=Win32 /p:LUA_DIR=C:\deps\lua /p:LUAWRAPPER_DIR=C:\deps\LuaWrapper /t:Felix /m /v:minimal
+        run: msbuild src/Felix/Felix.sln /p:Configuration=Unicode_Release /p:Platform=Win32 /p:LUA_DIR=C:\deps\lua /p:LUAWRAPPER_DIR=C:\deps\LuaWrapper /p:ForceImportBeforeCppTargets=C:\Temp\felix-ci.props /t:Felix /m /v:minimal
 
       # -----------------------------------------------------------------------
       - name: Build Word Assist x86
         shell: cmd
         continue-on-error: true
-        run: msbuild src/WordAssist/WordAssist.sln /p:Configuration=Release /p:Platform=Win32 /m /v:minimal
+        run: msbuild src/WordAssist/WordAssist.sln /p:Configuration=Release /p:Platform=Win32 /p:ForceImportBeforeCppTargets=C:\Temp\felix-ci.props /m /v:minimal
 
       - name: Build Word Assist x64
         shell: cmd
         continue-on-error: true
-        run: msbuild src/WordAssist/WordAssist.sln /p:Configuration=Release /p:Platform=x64 /m /v:minimal
+        run: msbuild src/WordAssist/WordAssist.sln /p:Configuration=Release /p:Platform=x64 /p:ForceImportBeforeCppTargets=C:\Temp\felix-ci.props /m /v:minimal
 
       # -----------------------------------------------------------------------
       - name: Build Excel Assist x86
         shell: cmd
         continue-on-error: true
-        run: msbuild src/ExcelAssist/ExcelAssist.sln /p:Configuration=Release /p:Platform=Win32 /m /v:minimal
+        run: msbuild src/ExcelAssist/ExcelAssist.sln /p:Configuration=Release /p:Platform=Win32 /p:ForceImportBeforeCppTargets=C:\Temp\felix-ci.props /m /v:minimal
 
       - name: Build Excel Assist x64
         shell: cmd
         continue-on-error: true
-        run: msbuild src/ExcelAssist/ExcelAssist.sln /p:Configuration=Release /p:Platform=x64 /m /v:minimal
+        run: msbuild src/ExcelAssist/ExcelAssist.sln /p:Configuration=Release /p:Platform=x64 /p:ForceImportBeforeCppTargets=C:\Temp\felix-ci.props /m /v:minimal
 
       # -----------------------------------------------------------------------
       - name: Build PowerPoint Assist x86
         shell: cmd
         continue-on-error: true
-        run: msbuild src/PowerPointAssist/PowerPointAssist.sln /p:Configuration=Release /p:Platform=Win32 /m /v:minimal
+        run: msbuild src/PowerPointAssist/PowerPointAssist.sln /p:Configuration=Release /p:Platform=Win32 /p:ForceImportBeforeCppTargets=C:\Temp\felix-ci.props /m /v:minimal
 
       - name: Build PowerPoint Assist x64
         shell: cmd
         continue-on-error: true
-        run: msbuild src/PowerPointAssist/PowerPointAssist.sln /p:Configuration=Release /p:Platform=x64 /m /v:minimal
+        run: msbuild src/PowerPointAssist/PowerPointAssist.sln /p:Configuration=Release /p:Platform=x64 /p:ForceImportBeforeCppTargets=C:\Temp\felix-ci.props /m /v:minimal
 
       # -----------------------------------------------------------------------
       - name: Collect build artifacts
