@@ -15,6 +15,24 @@ jobs:
     env:
       LUA_VERSION: "5.2.4"
       WTL_VERSION: "10.0.10320"
+      BOOST_PKGS: >-
+        boost-algorithm:x86-windows
+        boost-any:x86-windows
+        boost-assign:x86-windows
+        boost-bind:x86-windows
+        boost-filesystem:x86-windows
+        boost-flyweight:x86-windows
+        boost-foreach:x86-windows
+        boost-format:x86-windows
+        boost-function:x86-windows
+        boost-lexical-cast:x86-windows
+        boost-range:x86-windows
+        boost-regex:x86-windows
+        boost-smart-ptr:x86-windows
+        boost-static-assert:x86-windows
+        boost-test:x86-windows
+        boost-timer:x86-windows
+        boost-tuple:x86-windows
 
     steps:
       # -----------------------------------------------------------------------
@@ -42,7 +60,7 @@ jobs:
           path: |
             C:\deps
             C:\vcpkg\installed
-          key: felix-deps-${{ runner.os }}-lua${{ env.LUA_VERSION }}-wtl${{ env.WTL_VERSION }}
+          key: felix-deps-${{ runner.os }}-lua${{ env.LUA_VERSION }}-wtl${{ env.WTL_VERSION }}-boost2
 
       # -----------------------------------------------------------------------
       - name: Download and build Lua ${{ env.LUA_VERSION }}
@@ -74,7 +92,7 @@ jobs:
           git clone --depth 1 https://github.com/vinniefalco/LuaBridge.git C:/deps/LuaBridge
 
       # -----------------------------------------------------------------------
-      - name: Download LuaWrapper (kmsquire/luawrapper)
+      - name: Download LuaWrapper
         if: steps.cache-deps.outputs.cache-hit != 'true'
         shell: bash
         run: |
@@ -87,25 +105,37 @@ jobs:
         if: steps.cache-deps.outputs.cache-hit != 'true'
         shell: bash
         run: |
-          # SourceForge is behind Cloudflare JS challenge — use the GitHub mirror instead
           git clone --depth 1 --branch WTL_10_0_10320 https://github.com/Win32-WTL/WTL.git C:/deps/wtl 2>/dev/null || \
           git clone --depth 1 https://github.com/Win32-WTL/WTL.git C:/deps/wtl
           ls C:/deps/wtl/Include/atlapp.h && echo "WTL headers OK"
 
       # -----------------------------------------------------------------------
-      - name: Setup vcpkg boost (for Felix core)
+      - name: Install Boost via vcpkg
         if: steps.cache-deps.outputs.cache-hit != 'true'
-        shell: bash
+        shell: pwsh
         run: |
-          vcpkg install boost-algorithm:x86-windows boost-filesystem:x86-windows \
-                        boost-regex:x86-windows boost-test:x86-windows || true
+          # Install all Boost packages needed by Felix StdAfx.h
+          $pkgs = "$env:BOOST_PKGS" -split '\s+' | Where-Object { $_ -ne '' }
+          vcpkg install @pkgs
+          Write-Host "Boost install complete"
+
+      # -----------------------------------------------------------------------
+      - name: Place Lua sources where Felix.vcxproj expects them
+        shell: pwsh
+        run: |
+          # Felix.vcxproj references ..\..\lua-5.2.2\src\*.c relative to src/Felix/
+          # which resolves to lua-5.2.2/ at the repo root.
+          $dest = "$env:GITHUB_WORKSPACE\lua-5.2.2"
+          if (-not (Test-Path $dest)) {
+            Copy-Item -Recurse -Force C:\deps\lua $dest
+          }
+          Write-Host "Lua sources at $dest\src: $(Test-Path $dest\src\lapi.c)"
 
       # -----------------------------------------------------------------------
       - name: Add LuaBridge to src (expected relative path)
         shell: bash
         run: |
           # Felix.vcxproj expects ..\..\LuaBridge relative to src/Felix/
-          # so LuaBridge should be at src/LuaBridge/
           cp -r C:/deps/LuaBridge src/LuaBridge
 
       - name: Add LuaWrapper to src
@@ -114,21 +144,48 @@ jobs:
           cp -r C:/deps/LuaWrapper src/LuaWrapper
 
       # -----------------------------------------------------------------------
+      - name: Create D:\dev\cpp compatibility junctions for add-in projects
+        shell: pwsh
+        run: |
+          # WordAssist.vcxproj has hardcoded D:\dev\cpp\ paths.
+          # Create directory junctions so those paths resolve correctly.
+          New-Item -ItemType Directory -Force "D:\dev\cpp" | Out-Null
+          # LuaBridge: D:\dev\cpp\LuaBridge -> C:\deps\LuaBridge
+          if (-not (Test-Path "D:\dev\cpp\LuaBridge")) {
+            cmd /c mklink /J "D:\dev\cpp\LuaBridge" "C:\deps\LuaBridge"
+          }
+          # LuaWrapper: D:\dev\cpp\LuaWrapper -> C:\deps\LuaWrapper
+          if (-not (Test-Path "D:\dev\cpp\LuaWrapper")) {
+            cmd /c mklink /J "D:\dev\cpp\LuaWrapper" "C:\deps\LuaWrapper"
+          }
+          # lua-5.2.2: D:\dev\cpp\lua-5.2.2 -> C:\deps\lua
+          if (-not (Test-Path "D:\dev\cpp\lua-5.2.2")) {
+            cmd /c mklink /J "D:\dev\cpp\lua-5.2.2" "C:\deps\lua"
+          }
+          Write-Host "Junctions created:"
+          Get-Item "D:\dev\cpp\*" | ForEach-Object { Write-Host "  $($_.FullName) -> $($_.Target)" }
+
+      # -----------------------------------------------------------------------
       - name: Build Felix core (Unicode_Release x86)
         shell: pwsh
         continue-on-error: true
         run: |
-          $wtlDir = (Get-ChildItem "C:\deps\wtl" -Recurse -Filter "atlapp.h" | Select-Object -First 1).DirectoryName
+          $wtlDir     = (Get-ChildItem "C:\deps\wtl" -Recurse -Filter "atlapp.h" | Select-Object -First 1).DirectoryName
+          $commonDir  = "$env:GITHUB_WORKSPACE\src\common"
+          $boostInc   = "C:\vcpkg\installed\x86-windows\include"
+          $boostLib   = "C:\vcpkg\installed\x86-windows\lib"
+
           msbuild src/Felix/Felix.sln `
             /p:Configuration=Unicode_Release `
             /p:Platform=Win32 `
             /p:LUA_DIR="C:\deps\lua" `
             /p:LUAWRAPPER_DIR="C:\deps\LuaWrapper" `
-            /p:IncludePath="$wtlDir;C:\deps\lua\src;C:\deps\LuaWrapper\LuaWrapper;$(IncludePath)" `
-            /p:LibraryPath="C:\deps\lua\src;$(LibraryPath)" `
+            /p:IncludePath="$wtlDir;$commonDir;$boostInc;C:\deps\lua\src;C:\deps\LuaWrapper\LuaWrapper;$(IncludePath)" `
+            /p:LibraryPath="$boostLib;C:\deps\lua\src;$(LibraryPath)" `
             /t:Felix `
-            /m
-          echo "Felix build exit: $LASTEXITCODE"
+            /m `
+            /v:minimal
+          Write-Host "Felix build exit: $LASTEXITCODE"
 
       # -----------------------------------------------------------------------
       - name: Build Word Assist x86
@@ -138,8 +195,8 @@ jobs:
           $wtlDir = (Get-ChildItem "C:\deps\wtl" -Recurse -Filter "atlapp.h" | Select-Object -First 1).DirectoryName
           msbuild src/WordAssist/WordAssist.sln `
             /p:Configuration=Release /p:Platform=Win32 `
-            /p:IncludePath="$wtlDir;$(IncludePath)" /m
-          echo "WordAssist x86 exit: $LASTEXITCODE"
+            /p:IncludePath="$wtlDir;$(IncludePath)" /m /v:minimal
+          Write-Host "WordAssist x86 exit: $LASTEXITCODE"
 
       - name: Build Word Assist x64
         shell: pwsh
@@ -148,8 +205,8 @@ jobs:
           $wtlDir = (Get-ChildItem "C:\deps\wtl" -Recurse -Filter "atlapp.h" | Select-Object -First 1).DirectoryName
           msbuild src/WordAssist/WordAssist.sln `
             /p:Configuration=Release /p:Platform=x64 `
-            /p:IncludePath="$wtlDir;$(IncludePath)" /m
-          echo "WordAssist x64 exit: $LASTEXITCODE"
+            /p:IncludePath="$wtlDir;$(IncludePath)" /m /v:minimal
+          Write-Host "WordAssist x64 exit: $LASTEXITCODE"
 
       # -----------------------------------------------------------------------
       - name: Build Excel Assist x86
@@ -159,7 +216,7 @@ jobs:
           $wtlDir = (Get-ChildItem "C:\deps\wtl" -Recurse -Filter "atlapp.h" | Select-Object -First 1).DirectoryName
           msbuild src/ExcelAssist/ExcelAssist.sln `
             /p:Configuration=Release /p:Platform=Win32 `
-            /p:IncludePath="$wtlDir;$(IncludePath)" /m
+            /p:IncludePath="$wtlDir;$(IncludePath)" /m /v:minimal
 
       - name: Build Excel Assist x64
         shell: pwsh
@@ -168,7 +225,7 @@ jobs:
           $wtlDir = (Get-ChildItem "C:\deps\wtl" -Recurse -Filter "atlapp.h" | Select-Object -First 1).DirectoryName
           msbuild src/ExcelAssist/ExcelAssist.sln `
             /p:Configuration=Release /p:Platform=x64 `
-            /p:IncludePath="$wtlDir;$(IncludePath)" /m
+            /p:IncludePath="$wtlDir;$(IncludePath)" /m /v:minimal
 
       # -----------------------------------------------------------------------
       - name: Build PowerPoint Assist x86
@@ -178,7 +235,7 @@ jobs:
           $wtlDir = (Get-ChildItem "C:\deps\wtl" -Recurse -Filter "atlapp.h" | Select-Object -First 1).DirectoryName
           msbuild src/PowerPointAssist/PowerPointAssist.sln `
             /p:Configuration=Release /p:Platform=Win32 `
-            /p:IncludePath="$wtlDir;$(IncludePath)" /m
+            /p:IncludePath="$wtlDir;$(IncludePath)" /m /v:minimal
 
       - name: Build PowerPoint Assist x64
         shell: pwsh
@@ -187,24 +244,24 @@ jobs:
           $wtlDir = (Get-ChildItem "C:\deps\wtl" -Recurse -Filter "atlapp.h" | Select-Object -First 1).DirectoryName
           msbuild src/PowerPointAssist/PowerPointAssist.sln `
             /p:Configuration=Release /p:Platform=x64 `
-            /p:IncludePath="$wtlDir;$(IncludePath)" /m
+            /p:IncludePath="$wtlDir;$(IncludePath)" /m /v:minimal
 
       # -----------------------------------------------------------------------
       - name: Collect build artifacts
         shell: bash
         run: |
           mkdir -p artifacts/x86 artifacts/x64
-          find src -name "Felix.exe"       -path "*/Release/*" -exec cp {} artifacts/x86/ \; 2>/dev/null || true
-          find src -name "WordAssist.dll"  -path "*/Release/*" -not -path "*/Release64/*" -exec cp {} artifacts/x86/ \; 2>/dev/null || true
-          find src -name "ExcelAssist.dll" -path "*/Release/*" -not -path "*/Release64/*" -exec cp {} artifacts/x86/ \; 2>/dev/null || true
-          find src -name "PowerPointAssist.dll" -path "*/Release/*" -not -path "*/Release64/*" -exec cp {} artifacts/x86/ \; 2>/dev/null || true
-          find src -name "WordAssist.dll"  -path "*/Release64/*" -exec cp {} artifacts/x64/ \; 2>/dev/null || true
-          find src -name "ExcelAssist.dll" -path "*/Release64/*" -exec cp {} artifacts/x64/ \; 2>/dev/null || true
-          find src -name "PowerPointAssist.dll" -path "*/Release64/*" -exec cp {} artifacts/x64/ \; 2>/dev/null || true
-          # Also copy SciLexer.dll (included in source)
-          find src -name "SciLexer.dll" -exec cp {} artifacts/x86/ \; 2>/dev/null || true
-          echo "=== x86 artifacts ===" && ls artifacts/x86/ || echo "(none)"
-          echo "=== x64 artifacts ===" && ls artifacts/x64/ || echo "(none)"
+          # Felix builds to Unicode_Release/ (pattern "*/Release/*" matches "*/Unicode_Release/*")
+          find src -name "Felix.exe"            -path "*/Release/*" -exec cp {} artifacts/x86/ \; 2>/dev/null || true
+          find src -name "WordAssist.dll"       -path "*/Release/*" -not -path "*/x64/*" -exec cp {} artifacts/x86/ \; 2>/dev/null || true
+          find src -name "ExcelAssist.dll"      -path "*/Release/*" -not -path "*/x64/*" -exec cp {} artifacts/x86/ \; 2>/dev/null || true
+          find src -name "PowerPointAssist.dll" -path "*/Release/*" -not -path "*/x64/*" -exec cp {} artifacts/x86/ \; 2>/dev/null || true
+          find src -name "WordAssist.dll"       -path "*/x64/*"     -exec cp {} artifacts/x64/ \; 2>/dev/null || true
+          find src -name "ExcelAssist.dll"      -path "*/x64/*"     -exec cp {} artifacts/x64/ \; 2>/dev/null || true
+          find src -name "PowerPointAssist.dll" -path "*/x64/*"     -exec cp {} artifacts/x64/ \; 2>/dev/null || true
+          find src/Felix -name "SciLexer.dll"   -exec cp {} artifacts/x86/ \; 2>/dev/null || true
+          echo "=== x86 artifacts ===" && ls artifacts/x86/ 2>/dev/null || echo "(none)"
+          echo "=== x64 artifacts ===" && ls artifacts/x64/ 2>/dev/null || echo "(none)"
 
       # -----------------------------------------------------------------------
       - name: Build InnoSetup installer
@@ -216,17 +273,17 @@ jobs:
           if (Test-Path $iscc) {
             & $iscc src/setup/Felix.iss /DMyAppVersion="${{ github.ref_name }}" /DOutputDir="${{ github.workspace }}\installer"
           } else {
-            echo "InnoSetup not found — skipping installer"
+            Write-Host "InnoSetup not found — skipping installer"
           }
 
       # -----------------------------------------------------------------------
-      - name: Create source archive (always)
+      - name: Create source archive
         shell: bash
         run: |
           TAG=${{ github.ref_name }}
           7z a "felix-cat-classic-${TAG}-source.zip" \
               src/ docs/ manual/ README.md LICENSE CHANGELOG.md \
-              -xr!".hg" -xr!"*.ipch" -xr!"Debug" -xr!"Release"
+              -xr!".hg" -xr!"*.ipch" -xr!"Debug" -xr!"Release" -xr!"Unicode_Release"
 
       # -----------------------------------------------------------------------
       - name: Upload build logs on failure
@@ -245,6 +302,7 @@ jobs:
           path: |
             artifacts/
             installer/
+          if-no-files-found: warn
 
       # -----------------------------------------------------------------------
       - name: Create GitHub Release
