@@ -166,84 +166,63 @@ jobs:
           Get-Item "D:\dev\cpp\*" | ForEach-Object { Write-Host "  $($_.FullName) -> $($_.Target)" }
 
       # -----------------------------------------------------------------------
-      - name: Build Felix core (Unicode_Release x86)
+      - name: Resolve WTL include directory
+        id: wtl
         shell: pwsh
         run: |
-          $wtlDir     = (Get-ChildItem "C:\deps\wtl" -Recurse -Filter "atlapp.h" | Select-Object -First 1).DirectoryName
-          $commonDir  = "$env:GITHUB_WORKSPACE\src\common"
-          $boostInc   = "C:\vcpkg\installed\x86-windows\include"
-          $boostLib   = "C:\vcpkg\installed\x86-windows\lib"
-          $incPath    = "$wtlDir;$commonDir;$boostInc;C:\deps\lua\src;C:\deps\LuaWrapper\LuaWrapper"
-          $libPath    = "$boostLib;C:\deps\lua\src"
+          $wtlDir = (Get-ChildItem "C:\deps\wtl" -Recurse -Filter "atlapp.h" | Select-Object -First 1).DirectoryName
+          echo "dir=$wtlDir" >> $env:GITHUB_OUTPUT
+          Write-Host "WTL dir: $wtlDir"
 
-          msbuild src/Felix/Felix.sln `
-            /p:Configuration=Unicode_Release `
-            /p:Platform=Win32 `
-            /p:LUA_DIR=C:\deps\lua `
-            /p:LUAWRAPPER_DIR=C:\deps\LuaWrapper `
-            "/p:IncludePath=$incPath" `
-            "/p:LibraryPath=$libPath" `
-            /t:Felix `
-            /m `
-            /v:minimal
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Build Felix core (Unicode_Release x86)
+        shell: cmd
+        run: |
+          set "WTL=${{ steps.wtl.outputs.dir }}"
+          set "COMMON=%GITHUB_WORKSPACE%\src\common"
+          set "BOOST_INC=C:\vcpkg\installed\x86-windows\include"
+          set "BOOST_LIB=C:\vcpkg\installed\x86-windows\lib"
+          set "INC=%WTL%;%COMMON%;%BOOST_INC%;C:\deps\lua\src;C:\deps\LuaWrapper\LuaWrapper"
+          set "LIB=%BOOST_LIB%;C:\deps\lua\src"
+          msbuild src/Felix/Felix.sln /p:Configuration=Unicode_Release /p:Platform=Win32 /p:LUA_DIR=C:\deps\lua /p:LUAWRAPPER_DIR=C:\deps\LuaWrapper "/p:IncludePath=%INC%" "/p:LibraryPath=%LIB%" /t:Felix /m /v:minimal
 
       # -----------------------------------------------------------------------
       - name: Build Word Assist x86
-        shell: pwsh
+        shell: cmd
         continue-on-error: true
         run: |
-          $wtlDir = (Get-ChildItem "C:\deps\wtl" -Recurse -Filter "atlapp.h" | Select-Object -First 1).DirectoryName
-          msbuild src/WordAssist/WordAssist.sln `
-            /p:Configuration=Release /p:Platform=Win32 `
-            "/p:IncludePath=$wtlDir" /m /v:minimal
+          msbuild src/WordAssist/WordAssist.sln /p:Configuration=Release /p:Platform=Win32 "/p:IncludePath=${{ steps.wtl.outputs.dir }}" /m /v:minimal
 
       - name: Build Word Assist x64
-        shell: pwsh
+        shell: cmd
         continue-on-error: true
         run: |
-          $wtlDir = (Get-ChildItem "C:\deps\wtl" -Recurse -Filter "atlapp.h" | Select-Object -First 1).DirectoryName
-          msbuild src/WordAssist/WordAssist.sln `
-            /p:Configuration=Release /p:Platform=x64 `
-            "/p:IncludePath=$wtlDir" /m /v:minimal
+          msbuild src/WordAssist/WordAssist.sln /p:Configuration=Release /p:Platform=x64 "/p:IncludePath=${{ steps.wtl.outputs.dir }}" /m /v:minimal
 
       # -----------------------------------------------------------------------
       - name: Build Excel Assist x86
-        shell: pwsh
+        shell: cmd
         continue-on-error: true
         run: |
-          $wtlDir = (Get-ChildItem "C:\deps\wtl" -Recurse -Filter "atlapp.h" | Select-Object -First 1).DirectoryName
-          msbuild src/ExcelAssist/ExcelAssist.sln `
-            /p:Configuration=Release /p:Platform=Win32 `
-            "/p:IncludePath=$wtlDir" /m /v:minimal
+          msbuild src/ExcelAssist/ExcelAssist.sln /p:Configuration=Release /p:Platform=Win32 "/p:IncludePath=${{ steps.wtl.outputs.dir }}" /m /v:minimal
 
       - name: Build Excel Assist x64
-        shell: pwsh
+        shell: cmd
         continue-on-error: true
         run: |
-          $wtlDir = (Get-ChildItem "C:\deps\wtl" -Recurse -Filter "atlapp.h" | Select-Object -First 1).DirectoryName
-          msbuild src/ExcelAssist/ExcelAssist.sln `
-            /p:Configuration=Release /p:Platform=x64 `
-            "/p:IncludePath=$wtlDir" /m /v:minimal
+          msbuild src/ExcelAssist/ExcelAssist.sln /p:Configuration=Release /p:Platform=x64 "/p:IncludePath=${{ steps.wtl.outputs.dir }}" /m /v:minimal
 
       # -----------------------------------------------------------------------
       - name: Build PowerPoint Assist x86
-        shell: pwsh
+        shell: cmd
         continue-on-error: true
         run: |
-          $wtlDir = (Get-ChildItem "C:\deps\wtl" -Recurse -Filter "atlapp.h" | Select-Object -First 1).DirectoryName
-          msbuild src/PowerPointAssist/PowerPointAssist.sln `
-            /p:Configuration=Release /p:Platform=Win32 `
-            "/p:IncludePath=$wtlDir" /m /v:minimal
+          msbuild src/PowerPointAssist/PowerPointAssist.sln /p:Configuration=Release /p:Platform=Win32 "/p:IncludePath=${{ steps.wtl.outputs.dir }}" /m /v:minimal
 
       - name: Build PowerPoint Assist x64
-        shell: pwsh
+        shell: cmd
         continue-on-error: true
         run: |
-          $wtlDir = (Get-ChildItem "C:\deps\wtl" -Recurse -Filter "atlapp.h" | Select-Object -First 1).DirectoryName
-          msbuild src/PowerPointAssist/PowerPointAssist.sln `
-            /p:Configuration=Release /p:Platform=x64 `
-            "/p:IncludePath=$wtlDir" /m /v:minimal
+          msbuild src/PowerPointAssist/PowerPointAssist.sln /p:Configuration=Release /p:Platform=x64 "/p:IncludePath=${{ steps.wtl.outputs.dir }}" /m /v:minimal
 
       # -----------------------------------------------------------------------
       - name: Collect build artifacts
