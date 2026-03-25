@@ -168,7 +168,6 @@ jobs:
       # -----------------------------------------------------------------------
       - name: Build Felix core (Unicode_Release x86)
         shell: pwsh
-        continue-on-error: true
         run: |
           $wtlDir     = (Get-ChildItem "C:\deps\wtl" -Recurse -Filter "atlapp.h" | Select-Object -First 1).DirectoryName
           $commonDir  = "$env:GITHUB_WORKSPACE\src\common"
@@ -264,17 +263,27 @@ jobs:
           echo "=== x64 artifacts ===" && ls artifacts/x64/ 2>/dev/null || echo "(none)"
 
       # -----------------------------------------------------------------------
+      - name: Verify Felix.exe was built
+        shell: bash
+        run: |
+          if [ ! -f artifacts/x86/Felix.exe ]; then
+            echo "::error::Felix.exe was not produced — build failed"
+            exit 1
+          fi
+          echo "Felix.exe found: $(ls -la artifacts/x86/Felix.exe)"
+
+      # -----------------------------------------------------------------------
       - name: Build InnoSetup installer
         shell: pwsh
-        continue-on-error: true
         run: |
           choco install innosetup --no-progress -y
           $iscc = "C:\Program Files (x86)\Inno Setup 6\ISCC.exe"
-          if (Test-Path $iscc) {
-            & $iscc src/setup/Felix.iss /DMyAppVersion="${{ github.ref_name }}" /DOutputDir="${{ github.workspace }}\installer"
-          } else {
-            Write-Host "InnoSetup not found — skipping installer"
+          if (-not (Test-Path $iscc)) {
+            Write-Error "InnoSetup not found at $iscc"
+            exit 1
           }
+          & $iscc src/setup/Felix.iss /DMyAppVersion="${{ github.ref_name }}" /DOutputDir="${{ github.workspace }}\installer"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
       # -----------------------------------------------------------------------
       - name: Create source archive

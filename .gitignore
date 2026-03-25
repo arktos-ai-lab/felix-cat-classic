@@ -73,3 +73,5 @@ ipch/
 Thumbs.db
 desktop.ini
 .claude/
+.claude-flow/
+.mcp.json
