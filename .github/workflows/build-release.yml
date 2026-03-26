@@ -173,7 +173,7 @@ jobs:
           if (-not (Test-Path $dest)) {
             Copy-Item -Recurse -Force "$env:GITHUB_WORKSPACE\src\cpptempl" $dest
           }
-          Write-Host "cpptempl at $dest: $(Test-Path $dest\cpptempl.h)"
+          Write-Host "cpptempl at ${dest}: $(Test-Path ${dest}\cpptempl.h)"
 
       # -----------------------------------------------------------------------
       - name: Place Lua sources where Felix.vcxproj expects them
