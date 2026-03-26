@@ -230,21 +230,23 @@ jobs:
       - name: Write CI build props (ForceImportBeforeCppTargets)
         shell: pwsh
         run: |
-          $wtlDir   = (Get-ChildItem "C:\deps\wtl" -Recurse -Filter "atlapp.h" | Select-Object -First 1).DirectoryName
-          $common   = "$env:GITHUB_WORKSPACE\src\common"
-          $boostInc = "C:\vcpkg\installed\x86-windows\include"
-          $boostLib = "C:\vcpkg\installed\x86-windows\lib"
+          $wtlDir    = (Get-ChildItem "C:\deps\wtl" -Recurse -Filter "atlapp.h" | Select-Object -First 1).DirectoryName
+          $common    = "$env:GITHUB_WORKSPACE\src\common"
+          $cpptempl  = "$env:GITHUB_WORKSPACE\cpptempl"
+          $boostInc  = "C:\vcpkg\installed\x86-windows\include"
+          $boostLib  = "C:\vcpkg\installed\x86-windows\lib"
           $xml = @'
           <?xml version="1.0" encoding="utf-8"?>
           <Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
             <PropertyGroup>
-              <IncludePath>__WTL__;__COMMON__;__BOOST_INC__;C:\deps\lua\src;C:\deps\LuaWrapper\LuaWrapper;$(IncludePath)</IncludePath>
+              <IncludePath>__WTL__;__COMMON__;__CPPTEMPL__;__BOOST_INC__;C:\deps\lua\src;C:\deps\LuaWrapper\LuaWrapper;$(IncludePath)</IncludePath>
               <LibraryPath>__BOOST_LIB__;C:\deps\lua\src;$(LibraryPath)</LibraryPath>
             </PropertyGroup>
           </Project>
           '@
           $xml = $xml.Replace('__WTL__',       $wtlDir)
           $xml = $xml.Replace('__COMMON__',     $common)
+          $xml = $xml.Replace('__CPPTEMPL__',   $cpptempl)
           $xml = $xml.Replace('__BOOST_INC__',  $boostInc)
           $xml = $xml.Replace('__BOOST_LIB__',  $boostLib)
           New-Item -ItemType Directory -Force "C:\Temp" | Out-Null
