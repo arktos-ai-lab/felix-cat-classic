@@ -95,13 +95,14 @@ jobs:
           git clone --depth 1 https://github.com/vinniefalco/LuaBridge.git C:/deps/LuaBridge
 
       # -----------------------------------------------------------------------
-      - name: Download LuaWrapper
+      - name: Set up LuaWrapper (vendored stub)
         if: steps.cache-deps.outputs.cache-hit != 'true'
         shell: bash
         run: |
-          git clone --depth 1 https://github.com/Enfis/luawrapper.git C:/deps/LuaWrapper || \
-          git clone --depth 1 https://github.com/kmsquire/luawrapper.git C:/deps/LuaWrapper || \
-          mkdir -p C:/deps/LuaWrapper/LuaWrapper
+          # Both upstream luawrapper repos (Enfis, kmsquire) have been deleted.
+          # Use the vendored stub committed at src/LuaWrapper/.
+          mkdir -p C:/deps/LuaWrapper
+          cp -r src/LuaWrapper/. C:/deps/LuaWrapper/
 
       # -----------------------------------------------------------------------
       - name: Download WTL ${{ env.WTL_VERSION }} headers
@@ -263,8 +264,7 @@ jobs:
         run: |
           $wtlDir  = (Get-ChildItem "C:\deps\wtl" -Recurse -Filter "atlapp.h" | Select-Object -First 1).DirectoryName
           $ws      = $env:GITHUB_WORKSPACE
-          # Include both LuaWrapper subdirectory and root (covers different repo structures)
-          $extraIncludes = "$wtlDir;$ws\src\common;C:\vcpkg\installed\x86-windows\include;C:\deps\lua\src;C:\deps\LuaWrapper\LuaWrapper;C:\deps\LuaWrapper"
+          $extraIncludes = "$wtlDir;$ws\src\common;C:\vcpkg\installed\x86-windows\include;C:\deps\lua\src;C:\deps\LuaWrapper\LuaWrapper"
           $extraLibs     = "C:\vcpkg\installed\x86-windows\lib;C:\deps\lua\src"
           Write-Host "Extra includes: $extraIncludes"
           Write-Host "Extra libs:     $extraLibs"
