@@ -129,42 +129,40 @@ jobs:
           # boost/timer.hpp (the old simple boost::timer class) was removed in Boost 1.80.
           # vcpkg now provides boost/timer/timer.hpp (the new cpu_timer) but Felix uses
           # the old API.  Re-create the removed header as a minimal drop-in.
+          # Always overwrite — vcpkg installs a boost/timer.hpp with #error, so we
+          # must replace it unconditionally with our compatibility shim.
           $shimPath = "C:\vcpkg\installed\x86-windows\include\boost\timer.hpp"
-          if (-not (Test-Path $shimPath)) {
-            $shim = @'
-          #pragma once
-          // Compatibility shim: boost/timer.hpp was removed in Boost 1.80.
-          // Recreates the original boost::timer class using <ctime>.
-          #ifndef BOOST_TIMER_HPP_INCLUDED
-          #define BOOST_TIMER_HPP_INCLUDED
-          #include <boost/config.hpp>
-          #include <ctime>
-          #include <limits>
-          namespace boost {
-            class timer {
-            public:
-              typedef std::clock_t clock_t;
-              timer() { _start = std::clock(); }
-              void   restart() { _start = std::clock(); }
-              double elapsed() const {
-                return double(std::clock() - _start) / CLOCKS_PER_SEC;
-              }
-              double elapsed_max() const {
-                return (double((std::numeric_limits<clock_t>::max)()) -
-                        double(_start)) / double(CLOCKS_PER_SEC);
-              }
-              double elapsed_min() const { return double(1) / double(CLOCKS_PER_SEC); }
-            private:
-              clock_t _start;
-            };
-          } // namespace boost
-          #endif // BOOST_TIMER_HPP_INCLUDED
-          '@
-            Set-Content -Path $shimPath -Value $shim -Encoding UTF8
-            Write-Host "Created boost/timer.hpp shim at $shimPath"
-          } else {
-            Write-Host "boost/timer.hpp already present (from cache)"
-          }
+          New-Item -ItemType Directory -Force (Split-Path $shimPath) | Out-Null
+          $lines = @(
+            '#pragma once',
+            '// Compatibility shim: boost/timer.hpp (old API) replaced by shim.',
+            '#ifndef BOOST_TIMER_HPP_INCLUDED',
+            '#define BOOST_TIMER_HPP_INCLUDED',
+            '#include <boost/config.hpp>',
+            '#include <ctime>',
+            '#include <limits>',
+            'namespace boost {',
+            '  class timer {',
+            '  public:',
+            '    typedef std::clock_t clock_t;',
+            '    timer() { _start = std::clock(); }',
+            '    void   restart() { _start = std::clock(); }',
+            '    double elapsed() const {',
+            '      return double(std::clock() - _start) / CLOCKS_PER_SEC;',
+            '    }',
+            '    double elapsed_max() const {',
+            '      return (double((std::numeric_limits<clock_t>::max)()) -',
+            '              double(_start)) / double(CLOCKS_PER_SEC);',
+            '    }',
+            '    double elapsed_min() const { return double(1) / double(CLOCKS_PER_SEC); }',
+            '  private:',
+            '    clock_t _start;',
+            '  };',
+            '} // namespace boost',
+            '#endif // BOOST_TIMER_HPP_INCLUDED'
+          )
+          Set-Content -Path $shimPath -Value $lines -Encoding UTF8
+          Write-Host "Wrote boost/timer.hpp shim to $shimPath"
 
       # -----------------------------------------------------------------------
       - name: Place cpptempl where Felix.vcxproj expects it
