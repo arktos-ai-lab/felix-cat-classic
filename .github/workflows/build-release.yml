@@ -238,7 +238,7 @@ jobs:
           $lines = @(
             '<Project>',
             '  <PropertyGroup>',
-            "    <IncludePath>`$(ProjectDir);$extraIncludes;`$(IncludePath)</IncludePath>",
+            "    <IncludePath>$extraIncludes;`$(IncludePath);`$(ProjectDir)</IncludePath>",
             "    <LibraryPath>$extraLibs;`$(LibraryPath)</LibraryPath>",
             '  </PropertyGroup>',
             '</Project>'
