@@ -298,10 +298,13 @@ jobs:
         shell: pwsh
         run: |
           if (Test-Path msbuild-felix.log) {
+            Write-Host "=== MSBuild errors/warnings ==="
             Get-Content msbuild-felix.log |
-              Where-Object { $_ -match ': error ' } |
-              Select-Object -First 20 |
+              Where-Object { $_ -match ': (error|warning) [A-Z]' } |
+              Select-Object -First 40 |
               ForEach-Object { Write-Host "::error::$_" }
+            Write-Host "=== Last 80 lines of msbuild-felix.log ==="
+            Get-Content msbuild-felix.log | Select-Object -Last 80 | ForEach-Object { Write-Host $_ }
           } else {
             Write-Host "::error::msbuild-felix.log not found — msbuild may have failed to start"
           }
