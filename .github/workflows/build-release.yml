@@ -225,26 +225,33 @@ jobs:
           Get-Item "D:\dev\cpp\*" | ForEach-Object { Write-Host "  $($_.FullName) -> $($_.Target)" }
 
       # -----------------------------------------------------------------------
-      # Set INCLUDE and LIB env vars directly — cl.exe reads these before any
-      # MSBuild props magic, so this is the most reliable injection method.
-      - name: Export CI include/lib paths to GITHUB_ENV
+      # Inject CI-specific include/lib paths via Directory.Build.targets — this file
+      # is auto-imported by MSBuild after all .props files, so $(IncludePath) is
+      # fully formed and we can safely prepend without losing the VC++ system paths.
+      - name: Inject CI include/lib paths via Directory.Build.targets
         shell: pwsh
         run: |
-          $wtlDir   = (Get-ChildItem "C:\deps\wtl" -Recurse -Filter "atlapp.h" | Select-Object -First 1).DirectoryName
-          $ws       = $env:GITHUB_WORKSPACE
-          $include  = "$wtlDir;$ws\src\common;$ws\cpptempl;C:\vcpkg\installed\x86-windows\include;C:\deps\lua\src;C:\deps\LuaWrapper\LuaWrapper"
-          $lib      = "C:\vcpkg\installed\x86-windows\lib;C:\deps\lua\src"
-          Write-Host "INCLUDE paths: $include"
-          Write-Host "LIB paths:     $lib"
-          "CI_INCLUDE=$include" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
-          "CI_LIB=$lib"         | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          $wtlDir  = (Get-ChildItem "C:\deps\wtl" -Recurse -Filter "atlapp.h" | Select-Object -First 1).DirectoryName
+          $ws      = $env:GITHUB_WORKSPACE
+          $extraIncludes = "$wtlDir;$ws\src\common;C:\vcpkg\installed\x86-windows\include;C:\deps\lua\src;C:\deps\LuaWrapper\LuaWrapper"
+          $extraLibs     = "C:\vcpkg\installed\x86-windows\lib;C:\deps\lua\src"
+          Write-Host "Extra includes: $extraIncludes"
+          Write-Host "Extra libs:     $extraLibs"
+          $targets = @"
+<Project>
+  <PropertyGroup>
+    <IncludePath>$extraIncludes;`$(IncludePath)</IncludePath>
+    <LibraryPath>$extraLibs;`$(LibraryPath)</LibraryPath>
+  </PropertyGroup>
+</Project>
+"@
+          Set-Content -Path "$ws\src\Felix\Directory.Build.targets" -Value $targets -Encoding UTF8
+          Write-Host "Created Directory.Build.targets"
+          Get-Content "$ws\src\Felix\Directory.Build.targets"
 
       - name: Build Felix core (Unicode_Release x86)
         shell: cmd
         run: |
-          echo INCLUDE=%CI_INCLUDE%
-          set "INCLUDE=%CI_INCLUDE%;%INCLUDE%"
-          set "LIB=%CI_LIB%;%LIB%"
           msbuild src/Felix/Felix.sln /p:Configuration=Unicode_Release /p:Platform=Win32 /p:LUA_DIR=C:\deps\lua /p:LUAWRAPPER_DIR=C:\deps\LuaWrapper /t:Felix /m /v:normal /flp:logfile=msbuild-felix.log;verbosity=normal
 
       - name: Surface MSBuild errors as annotations
@@ -265,16 +272,12 @@ jobs:
         shell: cmd
         continue-on-error: true
         run: |
-          set "INCLUDE=%CI_INCLUDE%;%INCLUDE%"
-          set "LIB=%CI_LIB%;%LIB%"
           msbuild src/WordAssist/WordAssist.sln /p:Configuration=Release /p:Platform=Win32 /m /v:minimal
 
       - name: Build Word Assist x64
         shell: cmd
         continue-on-error: true
         run: |
-          set "INCLUDE=%CI_INCLUDE%;%INCLUDE%"
-          set "LIB=%CI_LIB%;%LIB%"
           msbuild src/WordAssist/WordAssist.sln /p:Configuration=Release /p:Platform=x64 /m /v:minimal
 
       # -----------------------------------------------------------------------
@@ -282,16 +285,12 @@ jobs:
         shell: cmd
         continue-on-error: true
         run: |
-          set "INCLUDE=%CI_INCLUDE%;%INCLUDE%"
-          set "LIB=%CI_LIB%;%LIB%"
           msbuild src/ExcelAssist/ExcelAssist.sln /p:Configuration=Release /p:Platform=Win32 /m /v:minimal
 
       - name: Build Excel Assist x64
         shell: cmd
         continue-on-error: true
         run: |
-          set "INCLUDE=%CI_INCLUDE%;%INCLUDE%"
-          set "LIB=%CI_LIB%;%LIB%"
           msbuild src/ExcelAssist/ExcelAssist.sln /p:Configuration=Release /p:Platform=x64 /m /v:minimal
 
       # -----------------------------------------------------------------------
@@ -299,16 +298,12 @@ jobs:
         shell: cmd
         continue-on-error: true
         run: |
-          set "INCLUDE=%CI_INCLUDE%;%INCLUDE%"
-          set "LIB=%CI_LIB%;%LIB%"
           msbuild src/PowerPointAssist/PowerPointAssist.sln /p:Configuration=Release /p:Platform=Win32 /m /v:minimal
 
       - name: Build PowerPoint Assist x64
         shell: cmd
         continue-on-error: true
         run: |
-          set "INCLUDE=%CI_INCLUDE%;%INCLUDE%"
-          set "LIB=%CI_LIB%;%LIB%"
           msbuild src/PowerPointAssist/PowerPointAssist.sln /p:Configuration=Release /p:Platform=x64 /m /v:minimal
 
       # -----------------------------------------------------------------------
