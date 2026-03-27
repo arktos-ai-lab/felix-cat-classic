@@ -9,7 +9,7 @@ namespace mem_engine
 	class GlossMatchComparator
 	{
 	public:
-		bool operator()(const std::wstring& s1, const std::wstring& s2)
+		bool operator()(const std::wstring& s1, const std::wstring& s2) const
 		{
 			if (s1.size() > s2.size())
 			{

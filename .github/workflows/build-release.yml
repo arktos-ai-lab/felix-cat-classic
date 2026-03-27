@@ -222,6 +222,38 @@ jobs:
           Write-Host "Junctions created:"
           Get-Item "D:\dev\cpp\*" | ForEach-Object { Write-Host "  $($_.FullName) -> $($_.Target)" }
 
+          # ---- Office type libraries (Felix imports MSO.DLL, EXCEL.OLB, VBE6EXT.OLB) ----
+          # Felix.vcxproj hardcodes D:\dev\cpp\Common DLLs\Word 2000 OLBs\ for the type libs.
+          # Find them in the runner's Office installation and copy them into the expected paths.
+          $olbDir = "D:\dev\cpp\Common DLLs\Word 2000 OLBs"
+          New-Item -ItemType Directory -Force $olbDir | Out-Null
+
+          $mso = Get-ChildItem "C:\Program Files","C:\Program Files (x86)" `
+              -Recurse -Filter "MSO.DLL" -ErrorAction SilentlyContinue |
+              Where-Object { $_.FullName -notmatch 'Updates' } | Select-Object -First 1
+          if ($mso) {
+            Copy-Item $mso.FullName "$olbDir\MSO.DLL" -Force
+            Write-Host "MSO.DLL -> $($mso.FullName)"
+          } else { Write-Warning "MSO.DLL not found — ExcelInterfaceReal.h import will fail" }
+
+          $excel = Get-ChildItem "C:\Program Files","C:\Program Files (x86)" `
+              -Recurse -Include "EXCEL.OLB","EXCEL9.OLB" -ErrorAction SilentlyContinue |
+              Select-Object -First 1
+          if ($excel) {
+            Copy-Item $excel.FullName "$olbDir\EXCEL9.olb" -Force
+            Write-Host "EXCEL9.olb <- $($excel.FullName)"
+          } else { Write-Warning "EXCEL.OLB not found" }
+
+          # VBE6EXT.olb — the #import uses an absolute D:\ path, so recreate the same tree on D:\
+          $vbe = Get-ChildItem "C:\Program Files","C:\Program Files (x86)" `
+              -Recurse -Filter "VBE6EXT.olb" -ErrorAction SilentlyContinue | Select-Object -First 1
+          if ($vbe) {
+            $vbeDestDir = "D:\Program Files (x86)\Common Files\microsoft shared\VBA\VBA6"
+            New-Item -ItemType Directory -Force $vbeDestDir | Out-Null
+            Copy-Item $vbe.FullName "$vbeDestDir\VBE6EXT.olb" -Force
+            Write-Host "VBE6EXT.olb <- $($vbe.FullName)"
+          } else { Write-Warning "VBE6EXT.olb not found" }
+
       # -----------------------------------------------------------------------
       # Inject CI-specific include/lib paths via Directory.Build.targets — this file
       # is auto-imported by MSBuild after all .props files, so $(IncludePath) is
@@ -238,7 +270,7 @@ jobs:
           $lines = @(
             '<Project>',
             '  <PropertyGroup>',
-            "    <IncludePath>$extraIncludes;`$(IncludePath);`$(ProjectDir)</IncludePath>",
+            "    <IncludePath>$extraIncludes;`$(IncludePath);`$(ProjectDir);`$(ProjectDir)Unicode_Release</IncludePath>",
             "    <LibraryPath>$extraLibs;`$(LibraryPath)</LibraryPath>",
             '  </PropertyGroup>',
             '</Project>'
