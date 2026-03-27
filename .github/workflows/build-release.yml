@@ -227,9 +227,10 @@ jobs:
       # -----------------------------------------------------------------------
       # Directory.Build.props is imported BEFORE Microsoft.Cpp.Default.props sets
       # IncludePath, so $(IncludePath) would be empty there. ForceImportBeforeCppTargets
-      # is imported AFTER the default props — $(IncludePath) is fully populated.
-      # Use @'...'@ (single-quoted) + .Replace() so MSBuild variable references like
-      # $(IncludePath) are not expanded by PowerShell.
+      # Use AdditionalIncludeDirectories in ItemDefinitionGroup — maps directly to
+      # cl.exe /I flags, more reliable than IncludePath/INCLUDE env var approach.
+      # Use @'...'@ (single-quoted) + .Replace() so MSBuild % references are not
+      # expanded by PowerShell.
       - name: Write CI build props (ForceImportBeforeCppTargets)
         shell: pwsh
         run: |
@@ -238,13 +239,21 @@ jobs:
           $cpptempl  = "$env:GITHUB_WORKSPACE\cpptempl"
           $boostInc  = "C:\vcpkg\installed\x86-windows\include"
           $boostLib  = "C:\vcpkg\installed\x86-windows\lib"
+          Write-Host "WTL dir: $wtlDir"
+          Write-Host "common : $common"
+          Write-Host "cpptempl: $cpptempl"
+          Write-Host "boostInc: $boostInc"
           $xml = @'
           <?xml version="1.0" encoding="utf-8"?>
           <Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
-            <PropertyGroup>
-              <IncludePath>__WTL__;__COMMON__;__CPPTEMPL__;__BOOST_INC__;C:\deps\lua\src;C:\deps\LuaWrapper\LuaWrapper;$(IncludePath)</IncludePath>
-              <LibraryPath>__BOOST_LIB__;C:\deps\lua\src;$(LibraryPath)</LibraryPath>
-            </PropertyGroup>
+            <ItemDefinitionGroup>
+              <ClCompile>
+                <AdditionalIncludeDirectories>__WTL__;__COMMON__;__CPPTEMPL__;__BOOST_INC__;C:\deps\lua\src;C:\deps\LuaWrapper\LuaWrapper;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+              </ClCompile>
+              <Link>
+                <AdditionalLibraryDirectories>__BOOST_LIB__;C:\deps\lua\src;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+              </Link>
+            </ItemDefinitionGroup>
           </Project>
           '@
           $xml = $xml.Replace('__WTL__',       $wtlDir)
