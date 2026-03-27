@@ -1,5 +1,10 @@
 #pragma once
 
+#ifdef _CI_BUILD
+// Office COM type libraries are not available in CI — use the stub implementation.
+#include "ExcelInterfaceFake.h"
+using ExcelInterfaceReal = ExcelInterfaceFake;
+#else
 
 #import "D:\dev\cpp\Common DLLs\Word 2000 OLBs\MSO.DLL"	\
 	rename_namespace("MSOffice") rename("RGB", "OfficeRGB") rename( "SearchPath", "OfficeSearchPath" ) rename("DocumentProperties", "OfficeDocumentProperties") named_guids    
@@ -84,3 +89,5 @@ public:
 	  }
 
 };
+
+#endif // _CI_BUILD

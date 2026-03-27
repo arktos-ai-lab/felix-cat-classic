@@ -63,7 +63,7 @@ jobs:
           path: |
             C:\deps
             C:\vcpkg\installed
-          key: felix-deps-${{ runner.os }}-lua${{ env.LUA_VERSION }}-wtl${{ env.WTL_VERSION }}-boost5
+          key: felix-deps-${{ runner.os }}-lua${{ env.LUA_VERSION }}-wtl${{ env.WTL_VERSION }}-boost6
 
       # -----------------------------------------------------------------------
       - name: Download and build Lua ${{ env.LUA_VERSION }}
@@ -263,7 +263,8 @@ jobs:
         run: |
           $wtlDir  = (Get-ChildItem "C:\deps\wtl" -Recurse -Filter "atlapp.h" | Select-Object -First 1).DirectoryName
           $ws      = $env:GITHUB_WORKSPACE
-          $extraIncludes = "$wtlDir;$ws\src\common;C:\vcpkg\installed\x86-windows\include;C:\deps\lua\src;C:\deps\LuaWrapper\LuaWrapper"
+          # Include both LuaWrapper subdirectory and root (covers different repo structures)
+          $extraIncludes = "$wtlDir;$ws\src\common;C:\vcpkg\installed\x86-windows\include;C:\deps\lua\src;C:\deps\LuaWrapper\LuaWrapper;C:\deps\LuaWrapper"
           $extraLibs     = "C:\vcpkg\installed\x86-windows\lib;C:\deps\lua\src"
           Write-Host "Extra includes: $extraIncludes"
           Write-Host "Extra libs:     $extraLibs"
@@ -273,6 +274,11 @@ jobs:
             "    <IncludePath>$extraIncludes;`$(IncludePath);`$(ProjectDir);`$(ProjectDir)Unicode_Release</IncludePath>",
             "    <LibraryPath>$extraLibs;`$(LibraryPath)</LibraryPath>",
             '  </PropertyGroup>',
+            '  <ItemDefinitionGroup>',
+            '    <ClCompile>',
+            '      <PreprocessorDefinitions>_CI_BUILD;%(PreprocessorDefinitions)</PreprocessorDefinitions>',
+            '    </ClCompile>',
+            '  </ItemDefinitionGroup>',
             '</Project>'
           )
           Set-Content -Path "$ws\src\Felix\Directory.Build.targets" -Value $lines -Encoding UTF8
