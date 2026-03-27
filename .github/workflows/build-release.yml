@@ -237,15 +237,15 @@ jobs:
           $extraLibs     = "C:\vcpkg\installed\x86-windows\lib;C:\deps\lua\src"
           Write-Host "Extra includes: $extraIncludes"
           Write-Host "Extra libs:     $extraLibs"
-          $targets = @"
-<Project>
-  <PropertyGroup>
-    <IncludePath>$extraIncludes;`$(IncludePath)</IncludePath>
-    <LibraryPath>$extraLibs;`$(LibraryPath)</LibraryPath>
-  </PropertyGroup>
-</Project>
-"@
-          Set-Content -Path "$ws\src\Felix\Directory.Build.targets" -Value $targets -Encoding UTF8
+          $lines = @(
+            '<Project>',
+            '  <PropertyGroup>',
+            "    <IncludePath>$extraIncludes;`$(IncludePath)</IncludePath>",
+            "    <LibraryPath>$extraLibs;`$(LibraryPath)</LibraryPath>",
+            '  </PropertyGroup>',
+            '</Project>'
+          )
+          Set-Content -Path "$ws\src\Felix\Directory.Build.targets" -Value $lines -Encoding UTF8
           Write-Host "Created Directory.Build.targets"
           Get-Content "$ws\src\Felix\Directory.Build.targets"
 
