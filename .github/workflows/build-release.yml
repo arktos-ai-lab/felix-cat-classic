@@ -27,6 +27,7 @@ jobs:
         boost-format:x86-windows
         boost-function:x86-windows
         boost-lexical-cast:x86-windows
+        boost-locale:x86-windows
         boost-range:x86-windows
         boost-regex:x86-windows
         boost-smart-ptr:x86-windows
@@ -34,6 +35,7 @@ jobs:
         boost-test:x86-windows
         boost-timer:x86-windows
         boost-tuple:x86-windows
+        boost-unordered:x86-windows
 
     steps:
       # -----------------------------------------------------------------------
@@ -61,7 +63,7 @@ jobs:
           path: |
             C:\deps
             C:\vcpkg\installed
-          key: felix-deps-${{ runner.os }}-lua${{ env.LUA_VERSION }}-wtl${{ env.WTL_VERSION }}-boost4
+          key: felix-deps-${{ runner.os }}-lua${{ env.LUA_VERSION }}-wtl${{ env.WTL_VERSION }}-boost5
 
       # -----------------------------------------------------------------------
       - name: Download and build Lua ${{ env.LUA_VERSION }}
