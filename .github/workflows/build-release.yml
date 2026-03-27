@@ -242,9 +242,23 @@ jobs:
       - name: Build Felix core (Unicode_Release x86)
         shell: cmd
         run: |
+          echo INCLUDE=%CI_INCLUDE%
           set "INCLUDE=%CI_INCLUDE%;%INCLUDE%"
           set "LIB=%CI_LIB%;%LIB%"
           msbuild src/Felix/Felix.sln /p:Configuration=Unicode_Release /p:Platform=Win32 /p:LUA_DIR=C:\deps\lua /p:LUAWRAPPER_DIR=C:\deps\LuaWrapper /t:Felix /m /v:normal /flp:logfile=msbuild-felix.log;verbosity=normal
+
+      - name: Surface MSBuild errors as annotations
+        if: failure()
+        shell: pwsh
+        run: |
+          if (Test-Path msbuild-felix.log) {
+            Get-Content msbuild-felix.log |
+              Where-Object { $_ -match ': error ' } |
+              Select-Object -First 20 |
+              ForEach-Object { Write-Host "::error::$_" }
+          } else {
+            Write-Host "::error::msbuild-felix.log not found — msbuild may have failed to start"
+          }
 
       # -----------------------------------------------------------------------
       - name: Build Word Assist x86
