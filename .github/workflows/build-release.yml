@@ -259,6 +259,17 @@ jobs:
       # Inject CI-specific include/lib paths via Directory.Build.targets — this file
       # is auto-imported by MSBuild after all .props files, so $(IncludePath) is
       # fully formed and we can safely prepend without losing the VC++ system paths.
+      - name: Diagnose vcpkg Boost lib names
+        shell: pwsh
+        run: |
+          Write-Host "=== boost*regex* ==="
+          Get-ChildItem "C:\vcpkg\installed\x86-windows\lib" -Filter "*regex*" | Select-Object Name
+          Write-Host "=== boost*filesystem* ==="
+          Get-ChildItem "C:\vcpkg\installed\x86-windows\lib" -Filter "*filesystem*" | Select-Object Name
+          Write-Host "=== boost*unit_test* / boost*test* ==="
+          Get-ChildItem "C:\vcpkg\installed\x86-windows\lib" -Filter "*unit_test*" | Select-Object Name
+          Get-ChildItem "C:\vcpkg\installed\x86-windows\lib" -Filter "*test*" | Select-Object Name
+
       - name: Inject CI include/lib paths via Directory.Build.targets
         shell: pwsh
         run: |
@@ -268,6 +279,18 @@ jobs:
           $extraLibs     = "C:\vcpkg\installed\x86-windows\lib;C:\deps\lua\src"
           Write-Host "Extra includes: $extraIncludes"
           Write-Host "Extra libs:     $extraLibs"
+
+          # Resolve actual vcpkg Boost lib names (dynamic triplet — untagged names)
+          $boostRegex = (Get-ChildItem "C:\vcpkg\installed\x86-windows\lib" -Filter "*regex*.lib" | Select-Object -First 1).Name
+          $boostFS    = (Get-ChildItem "C:\vcpkg\installed\x86-windows\lib" -Filter "*filesystem*.lib" | Select-Object -First 1).Name
+          Write-Host "boost_regex lib: $boostRegex"
+          Write-Host "boost_filesystem lib: $boostFS"
+          $boostDeps = @()
+          if ($boostRegex) { $boostDeps += $boostRegex }
+          if ($boostFS)    { $boostDeps += $boostFS }
+          $boostDepsStr = ($boostDeps -join ";")
+          if ($boostDepsStr) { $boostDepsStr += ";" }
+
           $lines = @(
             '<Project>',
             '  <PropertyGroup>',
@@ -279,7 +302,7 @@ jobs:
             '      <PreprocessorDefinitions>_CI_BUILD;BOOST_ALL_NO_LIB;%(PreprocessorDefinitions)</PreprocessorDefinitions>',
             '    </ClCompile>',
             '    <Link>',
-            '      <AdditionalDependencies>boost_unit_test_framework.lib;boost_regex.lib;boost_filesystem.lib;%(AdditionalDependencies)</AdditionalDependencies>',
+            "      <AdditionalDependencies>${boostDepsStr}%(AdditionalDependencies)</AdditionalDependencies>",
             '    </Link>',
             '  </ItemDefinitionGroup>',
             '</Project>'
