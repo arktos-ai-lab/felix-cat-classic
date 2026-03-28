@@ -175,7 +175,11 @@ jobs:
           if (-not (Test-Path $dest)) {
             Copy-Item -Recurse -Force "$env:GITHUB_WORKSPACE\src\cpptempl" $dest
           }
-          Write-Host "cpptempl at ${dest}: $(Test-Path ${dest}\cpptempl.h)"
+          # cpptempl.cpp includes "stdafx.h" — copy it next to cpptempl.cpp so the
+          # compiler finds it via same-directory lookup (no $(ProjectDir) in include path
+          # needed, which would shadow CRT <process.h>).
+          Copy-Item -Force "$env:GITHUB_WORKSPACE\src\Felix\stdafx.h" "$dest\stdafx.h"
+          Write-Host "cpptempl at ${dest}: cpptempl.h=$(Test-Path ${dest}\cpptempl.h) stdafx.h=$(Test-Path ${dest}\stdafx.h)"
 
       # -----------------------------------------------------------------------
       - name: Place Lua sources where Felix.vcxproj expects them
@@ -268,7 +272,9 @@ jobs:
           $ws      = $env:GITHUB_WORKSPACE
           # These dirs are passed as AdditionalIncludeDirectories so system headers
           # (CRT, WinSDK) are not displaced — toolset-provided IncludePath is untouched.
-          $extraIncludes = "$wtlDir;$ws\src\common;C:\vcpkg\installed\x86-windows\include;`$(ProjectDir);`$(ProjectDir)Unicode_Release"
+          # $(ProjectDir) intentionally excluded — it would shadow CRT <process.h> with src/Felix/process.h.
+          # stdafx.h is copied next to cpptempl.cpp so it's found via same-dir lookup instead.
+          $extraIncludes = "$wtlDir;$ws\src\common;C:\vcpkg\installed\x86-windows\include;`$(ProjectDir)Unicode_Release"
           $extraLibs     = "C:\vcpkg\installed\x86-windows\lib;C:\deps\lua\src"
           Write-Host "Extra includes: $extraIncludes"
           Write-Host "Extra libs:     $extraLibs"
