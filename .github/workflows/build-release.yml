@@ -63,7 +63,7 @@ jobs:
           path: |
             C:\deps
             C:\vcpkg\installed
-          key: felix-deps-${{ runner.os }}-lua${{ env.LUA_VERSION }}-wtl${{ env.WTL_VERSION }}-boost6
+          key: felix-deps-${{ runner.os }}-lua${{ env.LUA_VERSION }}-wtl${{ env.WTL_VERSION }}-boost7
 
       # -----------------------------------------------------------------------
       - name: Download and build Lua ${{ env.LUA_VERSION }}
@@ -294,20 +294,28 @@ jobs:
         run: |
           msbuild src/Felix/Felix.sln /p:Configuration=Unicode_Release /p:Platform=Win32 /p:LUA_DIR=C:\deps\lua /p:LUAWRAPPER_DIR=C:\deps\LuaWrapper /t:Felix /m /v:normal /flp:logfile=msbuild-felix.log;verbosity=normal
 
-      - name: Surface MSBuild errors as annotations
+      - name: Surface MSBuild errors to Job Summary
         if: failure()
         shell: pwsh
         run: |
           if (Test-Path msbuild-felix.log) {
-            Write-Host "=== MSBuild errors/warnings ==="
-            Get-Content msbuild-felix.log |
-              Where-Object { $_ -match ': (error|warning) [A-Z]' } |
-              Select-Object -First 40 |
-              ForEach-Object { Write-Host "::error::$_" }
-            Write-Host "=== Last 80 lines of msbuild-felix.log ==="
-            Get-Content msbuild-felix.log | Select-Object -Last 80 | ForEach-Object { Write-Host $_ }
+            # Write real errors (skip MIDL2111 noise) to Job Summary — no annotation cap
+            $errors = Get-Content msbuild-felix.log |
+              Where-Object { $_ -match ': (error|warning) [A-Z]' -and $_ -notmatch 'MIDL2111' }
+            "## MSBuild errors" | Out-File $env:GITHUB_STEP_SUMMARY -Append
+            '```' | Out-File $env:GITHUB_STEP_SUMMARY -Append
+            $errors | Select-Object -First 60 | Out-File $env:GITHUB_STEP_SUMMARY -Append
+            '```' | Out-File $env:GITHUB_STEP_SUMMARY -Append
+            "## Last 100 lines of msbuild-felix.log" | Out-File $env:GITHUB_STEP_SUMMARY -Append
+            '```' | Out-File $env:GITHUB_STEP_SUMMARY -Append
+            Get-Content msbuild-felix.log | Select-Object -Last 100 | Out-File $env:GITHUB_STEP_SUMMARY -Append
+            '```' | Out-File $env:GITHUB_STEP_SUMMARY -Append
+            # Still emit first real error as an annotation for the red X
+            $first = $errors | Select-Object -First 1
+            if ($first) { Write-Host "::error::$first" }
           } else {
-            Write-Host "::error::msbuild-felix.log not found — msbuild may have failed to start"
+            Write-Host "::error::msbuild-felix.log not found"
+            "msbuild-felix.log not found" | Out-File $env:GITHUB_STEP_SUMMARY -Append
           }
 
       # -----------------------------------------------------------------------
