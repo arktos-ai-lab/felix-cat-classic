@@ -294,29 +294,31 @@ jobs:
         run: |
           msbuild src/Felix/Felix.sln /p:Configuration=Unicode_Release /p:Platform=Win32 /p:LUA_DIR=C:\deps\lua /p:LUAWRAPPER_DIR=C:\deps\LuaWrapper /t:Felix /m /v:normal /flp:logfile=msbuild-felix.log;verbosity=normal
 
-      - name: Surface MSBuild errors to Job Summary
+      - name: Post build errors as commit comment
         if: failure()
         shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SHA: ${{ github.sha }}
+          REPO: ${{ github.repository }}
         run: |
+          # Commit comments are publicly readable via API — no auth cap issue
           if (Test-Path msbuild-felix.log) {
-            # Write real errors (skip MIDL2111 noise) to Job Summary — no annotation cap
-            $errors = Get-Content msbuild-felix.log |
-              Where-Object { $_ -match ': (error|warning) [A-Z]' -and $_ -notmatch 'MIDL2111' }
-            "## MSBuild errors" | Out-File $env:GITHUB_STEP_SUMMARY -Append
-            '```' | Out-File $env:GITHUB_STEP_SUMMARY -Append
-            $errors | Select-Object -First 60 | Out-File $env:GITHUB_STEP_SUMMARY -Append
-            '```' | Out-File $env:GITHUB_STEP_SUMMARY -Append
-            "## Last 100 lines of msbuild-felix.log" | Out-File $env:GITHUB_STEP_SUMMARY -Append
-            '```' | Out-File $env:GITHUB_STEP_SUMMARY -Append
-            Get-Content msbuild-felix.log | Select-Object -Last 100 | Out-File $env:GITHUB_STEP_SUMMARY -Append
-            '```' | Out-File $env:GITHUB_STEP_SUMMARY -Append
-            # Still emit first real error as an annotation for the red X
-            $first = $errors | Select-Object -First 1
-            if ($first) { Write-Host "::error::$first" }
+            $allErrors = Get-Content msbuild-felix.log |
+              Where-Object { $_ -match ': (error|warning) [A-Z]' -and $_ -notmatch 'MIDL2111' } |
+              Select-Object -First 50
+            $tail = Get-Content msbuild-felix.log | Select-Object -Last 60
+            $body = "### Felix build errors (run $env:GITHUB_RUN_ID)`n``````text`n" +
+                    ($allErrors -join "`n") + "`n---TAIL---`n" +
+                    ($tail -join "`n") + "`n``````"
           } else {
-            Write-Host "::error::msbuild-felix.log not found"
-            "msbuild-felix.log not found" | Out-File $env:GITHUB_STEP_SUMMARY -Append
+            $body = "### Felix build errors (run $env:GITHUB_RUN_ID)`nmsbuild-felix.log not found — MSBuild failed to start."
           }
+          $payload = @{ body = $body } | ConvertTo-Json -Compress
+          Invoke-RestMethod -Uri "https://api.github.com/repos/$env:REPO/commits/$env:SHA/comments" `
+            -Method Post -Headers @{ Authorization = "Bearer $env:GH_TOKEN"; 'Content-Type' = 'application/json' } `
+            -Body $payload
+          Write-Host "Posted build errors to commit comment"
 
       # -----------------------------------------------------------------------
       - name: Build Word Assist x86
