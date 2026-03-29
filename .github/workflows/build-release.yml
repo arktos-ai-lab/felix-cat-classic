@@ -299,33 +299,34 @@ jobs:
             Select-Object -ExpandProperty Name) -join ";"
           Write-Host "Boost libs: $boostLibs"
 
-          $lines = @(
-            '<Project>',
-            '  <PropertyGroup>',
-            "    <IncludePath>$extraIncludes;`$(IncludePath);`$(ProjectDir);`$(ProjectDir)Unicode_Release</IncludePath>",
-            "    <LibraryPath>$extraLibs;`$(LibraryPath)</LibraryPath>",
-            '  </PropertyGroup>',
-            '  <!-- Exclude *_test.cpp files from Unicode_Release: they pull in Boost.Test',
-            '       which has dllimport template issues (print_log_value<T>) that cannot',
-            '       be resolved from the DLL for project-specific types. Test files have',
-            '       no place in a production build. -->',
-            "  <ItemGroup Condition=`"'`$(Configuration)' == 'Unicode_Release'`">",
-            '    <ClCompile>',
-            '      <ExcludedFromBuild Condition="$([System.String]::Copy(%(Filename)).Contains(''_test''))">true</ExcludedFromBuild>',
-            '    </ClCompile>',
-            '  </ItemGroup>',
-            '  <ItemDefinitionGroup>',
-            '    <ClCompile>',
-            '      <PreprocessorDefinitions>_CI_BUILD;BOOST_ALL_DYN_LINK;BOOST_ALL_NO_LIB;%(PreprocessorDefinitions)</PreprocessorDefinitions>',
-            '    </ClCompile>',
-            '    <Link>',
-            "      <AdditionalLibraryDirectories>$vcpkgLib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>",
-            "      <AdditionalDependencies>$boostLibs;%(AdditionalDependencies)</AdditionalDependencies>",
-            '    </Link>',
-            '  </ItemDefinitionGroup>',
-            '</Project>'
-          )
-          Set-Content -Path "$ws\src\Felix\Directory.Build.targets" -Value $lines -Encoding UTF8
+          # Use a here-string so MSBuild $()/@ references are easy to escape with backtick
+          $targets = @"
+<Project>
+  <PropertyGroup>
+    <IncludePath>$extraIncludes;`$(IncludePath);`$(ProjectDir);`$(ProjectDir)Unicode_Release</IncludePath>
+    <LibraryPath>$extraLibs;`$(LibraryPath)</LibraryPath>
+  </PropertyGroup>
+  <!-- Exclude *_test.cpp from Unicode_Release: test files pull in Boost.Test DLL symbols
+       (print_log_value<T> is a dllimport template — not exported for custom types). -->
+  <Target Name="ExcludeTestFilesFromRelease" BeforeTargets="CoreCompile"
+          Condition="'`$(Configuration)' == 'Unicode_Release'">
+    <ItemGroup>
+      <ClCompile Remove="@(ClCompile)"
+                 Condition="`$([System.String]::Copy('%(Filename)').Contains('_test'))" />
+    </ItemGroup>
+  </Target>
+  <ItemDefinitionGroup>
+    <ClCompile>
+      <PreprocessorDefinitions>_CI_BUILD;BOOST_ALL_DYN_LINK;BOOST_ALL_NO_LIB;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+    </ClCompile>
+    <Link>
+      <AdditionalLibraryDirectories>$vcpkgLib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalDependencies>$boostLibs;%(AdditionalDependencies)</AdditionalDependencies>
+    </Link>
+  </ItemDefinitionGroup>
+</Project>
+"@
+          Set-Content -Path "$ws\src\Felix\Directory.Build.targets" -Value $targets -Encoding UTF8
           Write-Host "Created Directory.Build.targets"
           Get-Content "$ws\src\Felix\Directory.Build.targets"
 
