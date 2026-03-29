@@ -299,34 +299,34 @@ jobs:
             Select-Object -ExpandProperty Name) -join ";"
           Write-Host "Boost libs: $boostLibs"
 
-          # Use a here-string so MSBuild $()/@ references are easy to escape with backtick
-          $targets = @"
-<Project>
-  <PropertyGroup>
-    <IncludePath>$extraIncludes;`$(IncludePath);`$(ProjectDir);`$(ProjectDir)Unicode_Release</IncludePath>
-    <LibraryPath>$extraLibs;`$(LibraryPath)</LibraryPath>
-  </PropertyGroup>
-  <!-- Exclude *_test.cpp from Unicode_Release: test files pull in Boost.Test DLL symbols
-       (print_log_value<T> is a dllimport template — not exported for custom types). -->
-  <Target Name="ExcludeTestFilesFromRelease" BeforeTargets="CoreCompile"
-          Condition="'`$(Configuration)' == 'Unicode_Release'">
-    <ItemGroup>
-      <ClCompile Remove="@(ClCompile)"
-                 Condition="`$([System.String]::Copy('%(Filename)').Contains('_test'))" />
-    </ItemGroup>
-  </Target>
-  <ItemDefinitionGroup>
-    <ClCompile>
-      <PreprocessorDefinitions>_CI_BUILD;BOOST_ALL_DYN_LINK;BOOST_ALL_NO_LIB;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-    </ClCompile>
-    <Link>
-      <AdditionalLibraryDirectories>$vcpkgLib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
-      <AdditionalDependencies>$boostLibs;%(AdditionalDependencies)</AdditionalDependencies>
-    </Link>
-  </ItemDefinitionGroup>
-</Project>
-"@
-          Set-Content -Path "$ws\src\Felix\Directory.Build.targets" -Value $targets -Encoding UTF8
+          # $lines array: single-quoted strings don't interpolate $ or @,
+          # so MSBuild $()/@ refs are literal; '' is escaped single-quote in PS.
+          $lines = @(
+            '<Project>',
+            '  <PropertyGroup>',
+            "    <IncludePath>$extraIncludes;`$(IncludePath);`$(ProjectDir);`$(ProjectDir)Unicode_Release</IncludePath>",
+            "    <LibraryPath>$extraLibs;`$(LibraryPath)</LibraryPath>",
+            '  </PropertyGroup>',
+            '  <!-- Exclude *_test.cpp from Unicode_Release to avoid Boost.Test DLL link issues -->',
+            '  <Target Name="ExcludeTestFilesFromRelease" BeforeTargets="CoreCompile"',
+            '          Condition="''$(Configuration)'' == ''Unicode_Release''">',
+            '    <ItemGroup>',
+            '      <ClCompile Remove="@(ClCompile)"',
+            '                 Condition="$([System.String]::Copy(''%(Filename)'').Contains(''_test''))" />',
+            '    </ItemGroup>',
+            '  </Target>',
+            '  <ItemDefinitionGroup>',
+            '    <ClCompile>',
+            '      <PreprocessorDefinitions>_CI_BUILD;BOOST_ALL_DYN_LINK;BOOST_ALL_NO_LIB;%(PreprocessorDefinitions)</PreprocessorDefinitions>',
+            '    </ClCompile>',
+            '    <Link>',
+            "      <AdditionalLibraryDirectories>$vcpkgLib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>",
+            "      <AdditionalDependencies>$boostLibs;%(AdditionalDependencies)</AdditionalDependencies>",
+            '    </Link>',
+            '  </ItemDefinitionGroup>',
+            '</Project>'
+          )
+          Set-Content -Path "$ws\src\Felix\Directory.Build.targets" -Value $lines -Encoding UTF8
           Write-Host "Created Directory.Build.targets"
           Get-Content "$ws\src\Felix\Directory.Build.targets"
 
