@@ -118,10 +118,30 @@ jobs:
         if: steps.cache-deps.outputs.cache-hit != 'true'
         shell: pwsh
         run: |
-          # Install all Boost packages needed by Felix StdAfx.h
+          # Sync vcpkg port registry before installing
+          Push-Location C:\vcpkg
+          git pull --ff-only 2>&1 | Write-Host
+          Pop-Location
+
           $pkgs = "$env:BOOST_PKGS" -split '\s+' | Where-Object { $_ -ne '' }
-          vcpkg install @pkgs
-          Write-Host "Boost install complete"
+          Write-Host "Installing $($pkgs.Count) Boost packages..."
+
+          # Retry up to 3 times — vcpkg downloads can fail transiently
+          $maxRetries = 3
+          for ($attempt = 1; $attempt -le $maxRetries; $attempt++) {
+            Write-Host "--- vcpkg install attempt $attempt/$maxRetries ---"
+            vcpkg install @pkgs 2>&1 | Tee-Object -Variable vcpkgOut
+            if ($LASTEXITCODE -eq 0) {
+              Write-Host "Boost install complete"
+              break
+            }
+            Write-Warning "Attempt $attempt failed (exit $LASTEXITCODE)"
+            if ($attempt -eq $maxRetries) {
+              $vcpkgOut | Select-Object -Last 40 | ForEach-Object { Write-Host $_ }
+              throw "vcpkg install failed after $maxRetries attempts"
+            }
+            Start-Sleep -Seconds 10
+          }
 
       # -----------------------------------------------------------------------
       - name: Create boost/timer.hpp compatibility shim
