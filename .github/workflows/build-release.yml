@@ -265,12 +265,20 @@ jobs:
       - name: Inject CI include/lib paths via Directory.Build.targets
         shell: pwsh
         run: |
-          $wtlDir  = (Get-ChildItem "C:\deps\wtl" -Recurse -Filter "atlapp.h" | Select-Object -First 1).DirectoryName
-          $ws      = $env:GITHUB_WORKSPACE
+          $wtlDir     = (Get-ChildItem "C:\deps\wtl" -Recurse -Filter "atlapp.h" | Select-Object -First 1).DirectoryName
+          $ws         = $env:GITHUB_WORKSPACE
+          $vcpkgLib   = "C:\vcpkg\installed\x86-windows\lib"
           $extraIncludes = "$wtlDir;$ws\src\common;C:\vcpkg\installed\x86-windows\include"
-          $extraLibs     = "C:\vcpkg\installed\x86-windows\lib;C:\deps\lua\src"
-          Write-Host "Extra includes: $extraIncludes"
-          Write-Host "Extra libs:     $extraLibs"
+          $extraLibs     = "$vcpkgLib;C:\deps\lua\src"
+
+          # Enumerate all release (non-debug) Boost import libs installed by vcpkg.
+          # BOOST_ALL_NO_LIB disables auto-link; we supply the exact filenames instead,
+          # bypassing any version/name mismatch between auto-link and vcpkg's file names.
+          $boostLibs = (Get-ChildItem $vcpkgLib -Filter "boost_*.lib" |
+            Where-Object { $_.Name -notmatch '-gd-' } |
+            Select-Object -ExpandProperty Name) -join ";"
+          Write-Host "Boost libs: $boostLibs"
+
           $lines = @(
             '<Project>',
             '  <PropertyGroup>',
@@ -279,8 +287,12 @@ jobs:
             '  </PropertyGroup>',
             '  <ItemDefinitionGroup>',
             '    <ClCompile>',
-            '      <PreprocessorDefinitions>_CI_BUILD;BOOST_ALL_DYN_LINK;%(PreprocessorDefinitions)</PreprocessorDefinitions>',
+            '      <PreprocessorDefinitions>_CI_BUILD;BOOST_ALL_DYN_LINK;BOOST_ALL_NO_LIB;%(PreprocessorDefinitions)</PreprocessorDefinitions>',
             '    </ClCompile>',
+            '    <Link>',
+            "      <AdditionalLibraryDirectories>$vcpkgLib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>",
+            "      <AdditionalDependencies>$boostLibs;%(AdditionalDependencies)</AdditionalDependencies>",
+            '    </Link>',
             '  </ItemDefinitionGroup>',
             '</Project>'
           )
