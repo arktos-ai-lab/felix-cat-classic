@@ -175,11 +175,7 @@ jobs:
           if (-not (Test-Path $dest)) {
             Copy-Item -Recurse -Force "$env:GITHUB_WORKSPACE\src\cpptempl" $dest
           }
-          # cpptempl.cpp includes "stdafx.h" — copy it next to cpptempl.cpp so the
-          # compiler finds it via same-directory lookup (no $(ProjectDir) in include path
-          # needed, which would shadow CRT <process.h>).
-          Copy-Item -Force "$env:GITHUB_WORKSPACE\src\Felix\stdafx.h" "$dest\stdafx.h"
-          Write-Host "cpptempl at ${dest}: cpptempl.h=$(Test-Path ${dest}\cpptempl.h) stdafx.h=$(Test-Path ${dest}\stdafx.h)"
+          Write-Host "cpptempl at ${dest}: cpptempl.h=$(Test-Path ${dest}\cpptempl.h)"
 
       # -----------------------------------------------------------------------
       - name: Place Lua sources where Felix.vcxproj expects them
@@ -261,31 +257,28 @@ jobs:
 
       # -----------------------------------------------------------------------
       # Inject CI-specific include/lib paths via Directory.Build.targets.
-      # Use AdditionalIncludeDirectories (not IncludePath override) so system
-      # headers (CRT/SDK) are never accidentally removed from the search path.
-      # BOOST_ALL_DYN_LINK matches vcpkg x86-windows DLL import libs;
-      # Boost auto-link then finds the tagged import lib names that vcpkg installs.
+      # Directory.Build.targets is auto-imported AFTER the vcxproj, so $(IncludePath)
+      # expands to the vcxproj's value (cpptempl;lua;luawrapper + system headers).
+      # Extra CI dirs are PREPENDED; $(ProjectDir) is appended at the VERY END so
+      # system headers are found before src/Felix/process.h (avoids CRT shadowing).
+      # BOOST_ALL_DYN_LINK matches vcpkg x86-windows DLL import libs; auto-link works.
       - name: Inject CI include/lib paths via Directory.Build.targets
         shell: pwsh
         run: |
           $wtlDir  = (Get-ChildItem "C:\deps\wtl" -Recurse -Filter "atlapp.h" | Select-Object -First 1).DirectoryName
           $ws      = $env:GITHUB_WORKSPACE
-          # These dirs are passed as AdditionalIncludeDirectories so system headers
-          # (CRT, WinSDK) are not displaced — toolset-provided IncludePath is untouched.
-          # $(ProjectDir) intentionally excluded — it would shadow CRT <process.h> with src/Felix/process.h.
-          # stdafx.h is copied next to cpptempl.cpp so it's found via same-dir lookup instead.
-          $extraIncludes = "$wtlDir;$ws\src\common;C:\vcpkg\installed\x86-windows\include;`$(ProjectDir)Unicode_Release"
+          $extraIncludes = "$wtlDir;$ws\src\common;C:\vcpkg\installed\x86-windows\include"
           $extraLibs     = "C:\vcpkg\installed\x86-windows\lib;C:\deps\lua\src"
           Write-Host "Extra includes: $extraIncludes"
           Write-Host "Extra libs:     $extraLibs"
           $lines = @(
             '<Project>',
             '  <PropertyGroup>',
+            "    <IncludePath>$extraIncludes;`$(IncludePath);`$(ProjectDir);`$(ProjectDir)Unicode_Release</IncludePath>",
             "    <LibraryPath>$extraLibs;`$(LibraryPath)</LibraryPath>",
             '  </PropertyGroup>',
             '  <ItemDefinitionGroup>',
             '    <ClCompile>',
-            "      <AdditionalIncludeDirectories>$extraIncludes;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>",
             '      <PreprocessorDefinitions>_CI_BUILD;BOOST_ALL_DYN_LINK;%(PreprocessorDefinitions)</PreprocessorDefinitions>',
             '    </ClCompile>',
             '  </ItemDefinitionGroup>',
