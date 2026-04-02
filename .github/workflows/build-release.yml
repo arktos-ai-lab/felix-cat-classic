@@ -314,7 +314,7 @@ jobs:
             '  <Target Name="ExcludeTestFilesCI" BeforeTargets="PrepareForBuild"',
             '          Condition="''$(Configuration)'' == ''Unicode_Release''">',
             '    <ItemGroup>',
-            '      <ClCompile Condition="$([System.String]::Copy(''%(Filename)'').Contains(''_test''))">',
+            '      <ClCompile Condition="$([System.Text.RegularExpressions.Regex]::IsMatch(''%(Filename)'', ''_tests?$''))">',
             '        <ExcludedFromBuild>true</ExcludedFromBuild>',
             '      </ClCompile>',
             '    </ItemGroup>',
