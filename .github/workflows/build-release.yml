@@ -339,6 +339,15 @@ jobs:
         run: |
           msbuild src/Felix/Felix.sln /p:Configuration=Unicode_Release /p:Platform=Win32 /p:LUA_DIR=C:\deps\lua /p:LUAWRAPPER_DIR=C:\deps\LuaWrapper /t:Felix /m /v:normal /flp:logfile=msbuild-felix.log;verbosity=normal
 
+      - name: Locate Felix build output (debug)
+        if: always()
+        shell: bash
+        run: |
+          echo "=== Felix.exe search ==="
+          find src/Felix -name "Felix.exe" 2>/dev/null || echo "(not found under src/Felix)"
+          echo "=== All .exe under src ==="
+          find src -name "*.exe" 2>/dev/null | head -10 || echo "(none)"
+
       - name: Post build errors as commit comment
         if: failure()
         shell: pwsh
@@ -409,8 +418,8 @@ jobs:
         shell: bash
         run: |
           mkdir -p artifacts/x86 artifacts/x64
-          # Felix builds to Unicode_Release/ (pattern "*/Release/*" matches "*/Unicode_Release/*")
-          find src -name "Felix.exe"            -path "*/Release/*" -exec cp {} artifacts/x86/ \; 2>/dev/null || true
+          # Felix builds to Unicode_Release/ — no path filter needed since only one config is built
+          find src -name "Felix.exe"                                -exec cp {} artifacts/x86/ \; 2>/dev/null || true
           find src -name "WordAssist.dll"       -path "*/Release/*" -not -path "*/x64/*" -exec cp {} artifacts/x86/ \; 2>/dev/null || true
           find src -name "ExcelAssist.dll"      -path "*/Release/*" -not -path "*/x64/*" -exec cp {} artifacts/x86/ \; 2>/dev/null || true
           find src -name "PowerPointAssist.dll" -path "*/Release/*" -not -path "*/x64/*" -exec cp {} artifacts/x86/ \; 2>/dev/null || true
