@@ -443,15 +443,47 @@ jobs:
       # -----------------------------------------------------------------------
       - name: Build InnoSetup installer
         shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SHA: ${{ github.sha }}
+          REPO: ${{ github.repository }}
         run: |
-          choco install innosetup --no-progress -y
-          $iscc = "C:\Program Files (x86)\Inno Setup 6\ISCC.exe"
-          if (-not (Test-Path $iscc)) {
-            Write-Error "InnoSetup not found at $iscc"
+          # Verify Felix.exe is where the .iss script expects it (relative to src/setup/)
+          $felixExe = "src\Felix\Unicode_Release\Felix.exe"
+          if (-not (Test-Path $felixExe)) {
+            Write-Host "Felix.exe not at $felixExe — searching..."
+            Get-ChildItem -Recurse -Filter "Felix.exe" -ErrorAction SilentlyContinue | Select-Object FullName
+            Write-Error "Felix.exe missing from expected InnoSetup source path"
             exit 1
           }
-          & $iscc src/setup/Felix.iss /DMyAppVersion="${{ github.ref_name }}" /DOutputDir="${{ github.workspace }}\installer"
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          Write-Host "Felix.exe found: $(Get-Item $felixExe | Select-Object -ExpandProperty FullName)"
+
+          # Use pre-installed InnoSetup 6 (available on windows-2022 runner)
+          $iscc = "C:\Program Files (x86)\Inno Setup 6\ISCC.exe"
+          if (-not (Test-Path $iscc)) {
+            Write-Host "Pre-installed ISCC not found — installing via Chocolatey..."
+            choco install innosetup --no-progress -y
+          }
+          if (-not (Test-Path $iscc)) {
+            Write-Error "InnoSetup not found at $iscc after choco install"
+            exit 1
+          }
+          Write-Host "Using ISCC: $iscc"
+
+          New-Item -ItemType Directory -Force installer | Out-Null
+          & $iscc src/setup/Felix.iss /DMyAppVersion="${{ github.ref_name }}" /DOutputDir="${{ github.workspace }}\installer" 2>&1 | Tee-Object -FilePath iscc.log
+          $rc = $LASTEXITCODE
+          if ($rc -ne 0) {
+            $body = "### InnoSetup failed (run $env:GITHUB_RUN_ID)`n``````text`n" +
+                    ((Get-Content iscc.log -ErrorAction SilentlyContinue) -join "`n") +
+                    "`n``````"
+            $payload = @{ body = $body } | ConvertTo-Json -Compress
+            Invoke-RestMethod -Uri "https://api.github.com/repos/$env:REPO/commits/$env:SHA/comments" `
+              -Method Post -Headers @{ Authorization = "Bearer $env:GH_TOKEN"; 'Content-Type' = 'application/json' } `
+              -Body $payload -ErrorAction SilentlyContinue
+            exit $rc
+          }
+          Write-Host "Installer built: $(Get-ChildItem installer\*.exe | Select-Object -ExpandProperty Name)"
 
       # -----------------------------------------------------------------------
       - name: Create source archive
