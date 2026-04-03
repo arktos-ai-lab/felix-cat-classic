@@ -458,15 +458,14 @@ jobs:
           }
           Write-Host "Felix.exe found: $(Get-Item $felixExe | Select-Object -ExpandProperty FullName)"
 
-          # The windows-2022 runner ships a headless InnoSetup (no language files).
-          # Force a full Chocolatey install so English.isl and other resources are present.
-          choco install innosetup --no-progress -y --force
+          # Use the pre-installed InnoSetup 6 on the windows-2022 runner.
+          # The .iss file has no [Languages] section so English.isl is not required.
           $iscc = "C:\Program Files (x86)\Inno Setup 6\ISCC.exe"
           if (-not (Test-Path $iscc)) {
-            Write-Error "InnoSetup not found at $iscc after choco install"
+            Write-Error "InnoSetup 6 not found at $iscc"
             exit 1
           }
-          Write-Host "Using ISCC: $iscc  (English.isl: $(Test-Path 'C:\Program Files (x86)\Inno Setup 6\English.isl'))"
+          Write-Host "Using ISCC: $iscc"
 
           New-Item -ItemType Directory -Force installer | Out-Null
           & $iscc src/setup/Felix.iss /DMyAppVersion="${{ github.ref_name }}" /DOutputDir="${{ github.workspace }}\installer" 2>&1 | Tee-Object -FilePath iscc.log

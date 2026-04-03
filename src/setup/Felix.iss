@@ -45,8 +45,9 @@ MinVersion=10.0
 
 LicenseFile=..\..\LICENSE
 
-[Languages]
-Name: en; MessagesFile: "compiler:English.isl"
+; [Languages] section omitted — InnoSetup 6 defaults to built-in English
+; (avoids dependency on English.isl which is absent in the CI runner's
+;  headless InnoSetup installation)
 
 [Types]
 Name: full;    Description: "Full installation (64-bit Office add-ins)"
